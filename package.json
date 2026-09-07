@@ -1,6 +1,7 @@
 {
   "name": "kanban-digital",
   "private": true,
+  "type": "module",
   "packageManager": "pnpm@10.34.5",
   "scripts": {
     "dev": "pnpm --filter @kanban/web dev",
