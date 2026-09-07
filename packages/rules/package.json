@@ -10,7 +10,7 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "lint": "eslint src test"
+    "lint": "eslint src test --no-error-on-unmatched-pattern"
   },
   "devDependencies": {
     "vitest": "latest"
