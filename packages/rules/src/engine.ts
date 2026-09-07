@@ -2,6 +2,7 @@ import type { GameCommand } from './commands.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
+import { assertInvariants } from './invariants.js';
 import type { GameState } from './model.js';
 import { reduceEvent } from './reducer.js';
 
@@ -77,6 +78,8 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
     (currentState, event) => reduceEvent(currentState, event),
     state,
   );
+
+  assertInvariants(nextState);
 
   return {
     status: 'ACCEPTED',

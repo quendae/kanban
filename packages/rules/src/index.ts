@@ -6,6 +6,7 @@ export * from './enums.js';
 export * from './errors.js';
 export * from './events.js';
 export * from './ids.js';
+export * from './invariants.js';
 export * from './model.js';
 export * from './reducer.js';
 export * from './rng.js';
