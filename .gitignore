@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.vite/
+.DS_Store
+*.log
+
+# Local-only copyrighted/reference assets
+apps/web/public/assets/original-test/
