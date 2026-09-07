@@ -1,6 +1,7 @@
 export * from './commands.js';
 export * from './constants.js';
 export * from './create-game.js';
+export * from './engine.js';
 export * from './enums.js';
 export * from './errors.js';
 export * from './events.js';
