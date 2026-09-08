@@ -178,6 +178,28 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ],
         eventIndex: state.eventIndex + 1,
       };
+    case 'RECYCLING_PART_SWAPPED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.outgoingPartId]: {
+              kind: 'BOARD',
+              area: 'recycling',
+              slot: event.recyclingSlot,
+            },
+            [event.incomingPartId]: {
+              kind: 'PLAYER',
+              playerId: event.playerId,
+              area: 'parts',
+              slot: event.playerSlot,
+            },
+          },
+        },
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return {

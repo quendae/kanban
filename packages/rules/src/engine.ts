@@ -12,13 +12,14 @@ import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './invariants.js';
-import { getWarehouseParts } from './inventory.js';
+import { getPlayerParts, getRecyclingParts, getWarehouseParts } from './inventory.js';
 import {
   getMaximumCollectableQuantity,
   getPartCollection,
   planKanbanOrderRefill,
 } from './logistics.js';
 import type { GameState, PlayerState } from './model.js';
+import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
@@ -194,6 +195,56 @@ function takePartsVoucherErrors(
   return errors;
 }
 
+function recyclingSwapErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const plan = getRecyclingSwapPlan(
+    state,
+    command.actorId,
+    command.outgoingPartId,
+    command.incomingPartId,
+  );
+  if (!plan.ok) {
+    switch (plan.reason) {
+      case 'OUTGOING_NOT_OWNED':
+        errors.push('RECYCLING_OUTGOING_NOT_OWNED');
+        break;
+      case 'INCOMING_NOT_AVAILABLE':
+        errors.push('RECYCLING_INCOMING_NOT_AVAILABLE');
+        break;
+      case 'TYPE_OCCUPIED':
+        errors.push('RECYCLING_TYPE_OCCUPIED');
+        break;
+      case 'PART_DEFINITION_MISSING':
+        errors.push('RECYCLING_PART_DEFINITION_MISSING');
+        break;
+      case 'POOL_INVALID':
+        errors.push('RECYCLING_POOL_INVALID');
+        break;
+    }
+  }
+  return errors;
+}
+
+function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  if (state.phase !== 'WORK' || state.activeActorId !== playerId) return [];
+  const commands: GameCommand[] = [];
+  for (const outgoingPartId of getPlayerParts(state, playerId)) {
+    for (const incomingPartId of getRecyclingParts(state)) {
+      const command: GameCommand = {
+        type: 'SWAP_RECYCLING_PART',
+        actorId: playerId,
+        outgoingPartId,
+        incomingPartId,
+      };
+      if (recyclingSwapErrors(state, command).length === 0) commands.push(command);
+    }
+  }
+  return commands;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -221,6 +272,7 @@ export function getLegalCommands(
   }
 
   if (state.phase === 'WORK' && state.activeActorId === playerId) {
+    const recyclingCommands = getLegalRecyclingCommands(state, playerId);
     if (
       state.activeDepartmentAction?.kind === 'DESIGN_SELECTION' &&
       state.activeDepartmentAction.playerId === playerId
@@ -230,11 +282,15 @@ export function getLegalCommands(
         .map((designId) => ({ type: 'TAKE_DESIGN' as const, actorId: playerId, designId }));
       return [
         ...takeCommands,
+        ...recyclingCommands,
         { type: 'END_DESIGN_SELECTION' as const, actorId: playerId },
       ];
     }
 
-    const commands: GameCommand[] = [{ type: 'FINISH_WORK', actorId: playerId }];
+    const commands: GameCommand[] = [
+      { type: 'FINISH_WORK', actorId: playerId },
+      ...recyclingCommands,
+    ];
     if (startDesignSelectionErrors(state, playerId).length === 0) {
       commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
     }
@@ -302,6 +358,8 @@ function validateCommand(
       return issueKanbanOrderErrors(state, command);
     case 'TAKE_PARTS_VOUCHER':
       return takePartsVoucherErrors(state, command.actorId);
+    case 'SWAP_RECYCLING_PART':
+      return recyclingSwapErrors(state, command);
     case 'FINISH_WORK':
       return finishWorkErrors(state, command.actorId);
   }
@@ -419,6 +477,26 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           shiftCost: getGameRules(state.content).logisticsVoucherShiftCost,
         },
       ];
+    case 'SWAP_RECYCLING_PART': {
+      const plan = getRecyclingSwapPlan(
+        state,
+        command.actorId,
+        command.outgoingPartId,
+        command.incomingPartId,
+      );
+      if (!plan.ok) throw new Error(`Validated Recycling swap cannot resolve: ${plan.reason}`);
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'RECYCLING_PART_SWAPPED',
+          playerId: command.actorId,
+          outgoingPartId: command.outgoingPartId,
+          incomingPartId: command.incomingPartId,
+          playerSlot: plan.playerSlot,
+          recyclingSlot: plan.recyclingSlot,
+        },
+      ];
+    }
     case 'FINISH_WORK': {
       const finished: GameEvent = {
         id: makeId('event', state.eventIndex),

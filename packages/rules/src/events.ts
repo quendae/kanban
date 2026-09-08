@@ -61,6 +61,15 @@ export type GameEvent =
     }
   | {
       readonly id: EventId;
+      readonly type: 'RECYCLING_PART_SWAPPED';
+      readonly playerId: PlayerId;
+      readonly outgoingPartId: PartId;
+      readonly incomingPartId: PartId;
+      readonly playerSlot: number;
+      readonly recyclingSlot: number;
+    }
+  | {
+      readonly id: EventId;
       readonly type: 'PLAYER_FINISHED_WORK';
       readonly playerId: PlayerId;
     }
