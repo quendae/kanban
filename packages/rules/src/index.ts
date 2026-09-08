@@ -10,3 +10,4 @@ export * from './invariants.js';
 export * from './model.js';
 export * from './reducer.js';
 export * from './rng.js';
+export * from './workstations.js';
