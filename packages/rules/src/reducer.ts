@@ -3,7 +3,7 @@ import type { GameState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
 function assertNever(value: never): never {
-  throw new Error(`Unhandled GameEvent type: ${String(value)}`);
+  throw new Error(`Unhandled GameEvent: ${String(value)}`);
 }
 
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
@@ -45,6 +45,6 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     default:
-      return assertNever(event.type);
+      return assertNever(event);
   }
 }
