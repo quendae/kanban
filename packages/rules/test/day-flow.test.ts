@@ -5,22 +5,26 @@ import {
   getBaseShifts,
   getLegalCommands,
   getMaximumUsableShifts,
+  type WorkstationId,
 } from '../src/index.js';
 
-function workingGame() {
-  const shell = createShellGame({ seed: 'working-phase', playerCount: 2 });
+function workingGame(
+  p0Workstation: WorkstationId = 'A_LEFT',
+  p1Workstation: WorkstationId = 'B_RIGHT',
+) {
+  const shell = createShellGame({ seed: `working-${p0Workstation}-${p1Workstation}`, playerCount: 2 });
   const started = applyCommand(shell, { type: 'START_GAME', actorId: 'player:0' });
   if (started.status !== 'ACCEPTED') throw new Error('start failed');
   const p0 = applyCommand(started.state, {
     type: 'SELECT_WORKSTATION',
     actorId: 'player:0',
-    workstationId: 'A_LEFT',
+    workstationId: p0Workstation,
   });
   if (p0.status !== 'ACCEPTED') throw new Error('p0 selection failed');
   const p1 = applyCommand(p0.state, {
     type: 'SELECT_WORKSTATION',
     actorId: 'player:1',
-    workstationId: 'B_RIGHT',
+    workstationId: p1Workstation,
   });
   if (p1.status !== 'ACCEPTED') throw new Error('p1 selection failed');
   return p1.state;
@@ -71,5 +75,62 @@ describe('Working Phase', () => {
     expect(result.state.workCursor).toBe(1);
     expect(result.state.activeActorId).toBe('player:1');
     expect(result.state.phase).toBe('WORK');
+  });
+
+  it('keeps pending rewards unavailable until the final worker ends the day', () => {
+    const source = workingGame();
+    const state = {
+      ...source,
+      pendingRewards: [
+        { playerId: 'player:0' as const, type: 'BANKED_SHIFT' as const, amount: 2 },
+        { playerId: 'player:0' as const, type: 'BOOK' as const, amount: 1 },
+        { playerId: 'player:0' as const, type: 'VOUCHER' as const, amount: 1 },
+      ],
+    };
+
+    expect(getMaximumUsableShifts(state, 'player:0')).toBe(2);
+    expect(state.players[0]).toMatchObject({ bankedShifts: 0, books: 0, vouchers: 0 });
+
+    const first = applyCommand(state, { type: 'FINISH_WORK', actorId: 'player:0' });
+    if (first.status !== 'ACCEPTED') throw new Error('first finish failed');
+    expect(first.state.pendingRewards).toHaveLength(3);
+    expect(first.state.players[0]).toMatchObject({ bankedShifts: 0, books: 0, vouchers: 0 });
+
+    const last = applyCommand(first.state, { type: 'FINISH_WORK', actorId: 'player:1' });
+    expect(last.status).toBe('ACCEPTED');
+    if (last.status !== 'ACCEPTED') return;
+    expect(last.events.map((event) => event.type)).toEqual(['PLAYER_FINISHED_WORK', 'DAY_ENDED']);
+    expect(last.state.players[0]).toMatchObject({
+      bankedShifts: 2,
+      books: 1,
+      vouchers: 1,
+      previousDepartment: 'TESTING_INNOVATION',
+      currentDepartment: null,
+      currentWorkstation: null,
+      baseShiftsToday: 0,
+      shiftsSpentToday: 0,
+      done: false,
+    });
+    expect(last.state.pendingRewards).toEqual([]);
+    expect(last.state.dayIndex).toBe(1);
+    expect(last.state.phase).toBe('SELECT_DEPARTMENT');
+    expect(last.state.selectionCursor).toBe(0);
+    expect(last.state.workCursor).toBe(0);
+    expect(last.state.workOrder).toEqual([]);
+  });
+
+  it('uses today’s left-to-right workstation positions as tomorrow’s selection order', () => {
+    const state = workingGame('D_RIGHT', 'A_RIGHT');
+    expect(state.workOrder).toEqual(['player:1', 'player:0']);
+
+    const first = applyCommand(state, { type: 'FINISH_WORK', actorId: 'player:1' });
+    if (first.status !== 'ACCEPTED') throw new Error('first finish failed');
+    const last = applyCommand(first.state, { type: 'FINISH_WORK', actorId: 'player:0' });
+    if (last.status !== 'ACCEPTED') throw new Error('last finish failed');
+
+    expect(last.state.selectionOrder).toEqual(['player:1', 'player:0']);
+    expect(last.state.activeActorId).toBe('player:1');
+    expect(last.state.players[0]?.previousDepartment).toBe('DESIGN');
+    expect(last.state.players[1]?.previousDepartment).toBe('TESTING_INNOVATION');
   });
 });
