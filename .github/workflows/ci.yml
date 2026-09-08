@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: write
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -22,11 +25,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      - name: Print generated lockfile
+      - name: Commit generated lockfile
+        if: github.event_name == 'push' && github.ref == 'refs/heads/feat/slice-0-rules-kernel'
         run: |
-          echo '===PNPM_LOCKFILE_BEGIN==='
-          cat pnpm-lock.yaml
-          echo '===PNPM_LOCKFILE_END==='
+          if [ -n "$(git status --porcelain pnpm-lock.yaml)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add pnpm-lock.yaml
+            git commit -m "chore: lock workspace dependencies"
+            git push origin HEAD:${GITHUB_REF_NAME}
+          fi
 
       - name: Guard deterministic rules runtime
         run: |
