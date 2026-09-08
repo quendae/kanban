@@ -10,4 +10,8 @@ export type GameCommand =
       readonly type: 'SELECT_WORKSTATION';
       readonly actorId: PlayerId;
       readonly workstationId: WorkstationId;
+    }
+  | {
+      readonly type: 'FINISH_WORK';
+      readonly actorId: PlayerId;
     };

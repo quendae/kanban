@@ -1,9 +1,10 @@
 import type { GameCommand } from './commands.js';
+import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './invariants.js';
-import type { GameState } from './model.js';
+import type { GameState, PlayerState } from './model.js';
 import { reduceEvent } from './reducer.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
@@ -18,6 +19,21 @@ export type CommandResult =
       readonly state: GameState;
       readonly errors: readonly RuleErrorCode[];
     };
+
+function getPlayer(state: GameState, playerId: PlayerId): PlayerState {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player) throw new Error(`Unknown player: ${playerId}`);
+  return player;
+}
+
+export function getBaseShifts(state: GameState, playerId: PlayerId): number {
+  return getPlayer(state, playerId).baseShiftsToday;
+}
+
+export function getMaximumUsableShifts(state: GameState, playerId: PlayerId): number {
+  const player = getPlayer(state, playerId);
+  return Math.min(MAX_SHIFTS_PER_DAY, player.baseShiftsToday + player.bankedShifts);
+}
 
 function isWorkstationOccupied(state: GameState, workstationId: WorkstationId): boolean {
   return state.players.some((player) => player.currentWorkstation === workstationId);
@@ -49,6 +65,12 @@ function selectionErrors(
   return errors;
 }
 
+function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
+  if (state.phase !== 'WORK') return ['WRONG_PHASE'];
+  if (state.activeActorId !== playerId) return ['NOT_ACTIVE_ACTOR'];
+  return [];
+}
+
 export function getLegalCommands(
   state: GameState,
   playerId: PlayerId,
@@ -69,6 +91,10 @@ export function getLegalCommands(
     }));
   }
 
+  if (state.phase === 'WORK' && state.activeActorId === playerId) {
+    return [{ type: 'FINISH_WORK', actorId: playerId }];
+  }
+
   return [];
 }
 
@@ -85,6 +111,8 @@ function validateCommand(
     }
     case 'SELECT_WORKSTATION':
       return selectionErrors(state, command.actorId, command.workstationId);
+    case 'FINISH_WORK':
+      return finishWorkErrors(state, command.actorId);
   }
 }
 
@@ -135,6 +163,14 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         },
       ];
     }
+    case 'FINISH_WORK':
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'PLAYER_FINISHED_WORK',
+          playerId: command.actorId,
+        },
+      ];
   }
 }
 

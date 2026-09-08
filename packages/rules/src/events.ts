@@ -16,4 +16,9 @@ export type GameEvent =
       readonly id: EventId;
       readonly type: 'WORKING_PHASE_STARTED';
       readonly workOrder: readonly PlayerId[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'PLAYER_FINISHED_WORK';
+      readonly playerId: PlayerId;
     };

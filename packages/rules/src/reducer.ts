@@ -44,6 +44,18 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         activeActorId: event.workOrder[0] ?? null,
         eventIndex: state.eventIndex + 1,
       };
+    case 'PLAYER_FINISHED_WORK': {
+      const nextCursor = state.workCursor + 1;
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === event.playerId ? { ...player, done: true } : player,
+        ),
+        workCursor: nextCursor,
+        activeActorId: state.workOrder[nextCursor] ?? null,
+        eventIndex: state.eventIndex + 1,
+      };
+    }
     default:
       return assertNever(event);
   }
