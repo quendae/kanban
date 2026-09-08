@@ -55,6 +55,54 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         activeActorId: event.workOrder[0] ?? null,
         eventIndex: state.eventIndex + 1,
       };
+    case 'DESIGN_SELECTION_STARTED':
+      return {
+        ...state,
+        activeDepartmentAction: {
+          kind: 'DESIGN_SELECTION',
+          playerId: event.playerId,
+        },
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DESIGN_TAKEN':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          designs: {
+            ...state.board.designs,
+            [event.designId]: {
+              kind: 'PLAYER',
+              playerId: event.playerId,
+              area: 'blueprints',
+              slot: event.destinationSlot,
+            },
+          },
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
+        pendingRewards:
+          event.bonus === null
+            ? state.pendingRewards
+            : [
+                ...state.pendingRewards,
+                { playerId: event.playerId, type: event.bonus, amount: 1 },
+              ],
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DESIGN_SELECTION_ENDED': {
+      const designs = { ...state.board.designs };
+      for (const move of event.moves) designs[move.designId] = move.location;
+      return {
+        ...state,
+        board: { ...state.board, designs },
+        activeDepartmentAction: null,
+        eventIndex: state.eventIndex + 1,
+      };
+    }
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return {
@@ -82,7 +130,10 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           baseShiftsToday: 0,
           shiftsSpentToday: 0,
           done: false,
+          kanbanOrderIssuedToday: false,
+          logisticsVoucherTakenToday: false,
         })),
+        activeDepartmentAction: null,
         pendingRewards: [],
         dayIndex: state.dayIndex + 1,
         phase: 'SELECT_DEPARTMENT',

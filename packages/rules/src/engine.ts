@@ -1,5 +1,12 @@
 import type { GameCommand } from './commands.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
+import {
+  getOldestDesignBonus,
+  getOpenBlueprintSlot,
+  getSelectableDesignIds,
+  hasDesignCapacity,
+  planDesignReplenishment,
+} from './design.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
@@ -65,10 +72,63 @@ function selectionErrors(
   return errors;
 }
 
+function activeWorkErrors(state: GameState, playerId: PlayerId): RuleErrorCode[] {
+  const errors: RuleErrorCode[] = [];
+  if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
+  if (state.activeActorId !== playerId) errors.push('NOT_ACTIVE_ACTOR');
+  return errors;
+}
+
+function startDesignSelectionErrors(
+  state: GameState,
+  playerId: PlayerId,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, playerId);
+  if (getPlayer(state, playerId).currentDepartment !== 'DESIGN') errors.push('NOT_IN_DESIGN');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  return errors;
+}
+
+function takeDesignErrors(
+  state: GameState,
+  playerId: PlayerId,
+  designId: Extract<GameCommand, { readonly type: 'TAKE_DESIGN' }>['designId'],
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, playerId);
+  if (
+    state.activeDepartmentAction?.kind !== 'DESIGN_SELECTION' ||
+    state.activeDepartmentAction.playerId !== playerId
+  ) {
+    errors.push('NO_ACTIVE_DESIGN_SELECTION');
+  }
+  if (!getSelectableDesignIds(state, playerId).includes(designId)) {
+    errors.push('DESIGN_NOT_AVAILABLE');
+  }
+  if (!hasDesignCapacity(state, playerId)) errors.push('NO_DESIGN_SLOT');
+  if (getPlayer(state, playerId).shiftsSpentToday >= getMaximumUsableShifts(state, playerId)) {
+    errors.push('INSUFFICIENT_SHIFTS');
+  }
+  return errors;
+}
+
+function endDesignSelectionErrors(
+  state: GameState,
+  playerId: PlayerId,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, playerId);
+  if (
+    state.activeDepartmentAction?.kind !== 'DESIGN_SELECTION' ||
+    state.activeDepartmentAction.playerId !== playerId
+  ) {
+    errors.push('NO_ACTIVE_DESIGN_SELECTION');
+  }
+  return errors;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
-  if (state.phase !== 'WORK') return ['WRONG_PHASE'];
-  if (state.activeActorId !== playerId) return ['NOT_ACTIVE_ACTOR'];
-  return [];
+  const errors = activeWorkErrors(state, playerId);
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  return errors;
 }
 
 export function getLegalCommands(
@@ -92,7 +152,24 @@ export function getLegalCommands(
   }
 
   if (state.phase === 'WORK' && state.activeActorId === playerId) {
-    return [{ type: 'FINISH_WORK', actorId: playerId }];
+    if (
+      state.activeDepartmentAction?.kind === 'DESIGN_SELECTION' &&
+      state.activeDepartmentAction.playerId === playerId
+    ) {
+      const takeCommands = getSelectableDesignIds(state, playerId)
+        .filter((designId) => takeDesignErrors(state, playerId, designId).length === 0)
+        .map((designId) => ({ type: 'TAKE_DESIGN' as const, actorId: playerId, designId }));
+      return [
+        ...takeCommands,
+        { type: 'END_DESIGN_SELECTION' as const, actorId: playerId },
+      ];
+    }
+
+    const commands: GameCommand[] = [{ type: 'FINISH_WORK', actorId: playerId }];
+    if (startDesignSelectionErrors(state, playerId).length === 0) {
+      commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
+    }
+    return commands;
   }
 
   return [];
@@ -111,6 +188,12 @@ function validateCommand(
     }
     case 'SELECT_WORKSTATION':
       return selectionErrors(state, command.actorId, command.workstationId);
+    case 'START_DESIGN_SELECTION':
+      return startDesignSelectionErrors(state, command.actorId);
+    case 'TAKE_DESIGN':
+      return takeDesignErrors(state, command.actorId, command.designId);
+    case 'END_DESIGN_SELECTION':
+      return endDesignSelectionErrors(state, command.actorId);
     case 'FINISH_WORK':
       return finishWorkErrors(state, command.actorId);
   }
@@ -163,6 +246,37 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         },
       ];
     }
+    case 'START_DESIGN_SELECTION':
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'DESIGN_SELECTION_STARTED',
+          playerId: command.actorId,
+        },
+      ];
+    case 'TAKE_DESIGN': {
+      const destinationSlot = getOpenBlueprintSlot(state, command.actorId);
+      if (destinationSlot === null) throw new Error('Validated Design take has no destination slot');
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'DESIGN_TAKEN',
+          playerId: command.actorId,
+          designId: command.designId,
+          destinationSlot,
+          bonus: getOldestDesignBonus(state, command.designId),
+        },
+      ];
+    }
+    case 'END_DESIGN_SELECTION':
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'DESIGN_SELECTION_ENDED',
+          playerId: command.actorId,
+          moves: planDesignReplenishment(state),
+        },
+      ];
     case 'FINISH_WORK': {
       const finished: GameEvent = {
         id: makeId('event', state.eventIndex),

@@ -1,4 +1,6 @@
-import type { EventId, PlayerId } from './ids.js';
+import type { DesignMove } from './design.js';
+import type { EventId, DesignId, PlayerId } from './ids.js';
+import type { PendingRewardType } from './model.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameEvent =
@@ -16,6 +18,25 @@ export type GameEvent =
       readonly id: EventId;
       readonly type: 'WORKING_PHASE_STARTED';
       readonly workOrder: readonly PlayerId[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DESIGN_SELECTION_STARTED';
+      readonly playerId: PlayerId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DESIGN_TAKEN';
+      readonly playerId: PlayerId;
+      readonly designId: DesignId;
+      readonly destinationSlot: number;
+      readonly bonus: PendingRewardType | null;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DESIGN_SELECTION_ENDED';
+      readonly playerId: PlayerId;
+      readonly moves: readonly DesignMove[];
     }
   | {
       readonly id: EventId;

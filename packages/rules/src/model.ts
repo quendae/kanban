@@ -60,6 +60,13 @@ export interface PendingReward {
   readonly amount: number;
 }
 
+export type ActiveDepartmentAction =
+  | {
+      readonly kind: 'DESIGN_SELECTION';
+      readonly playerId: PlayerId;
+    }
+  | null;
+
 export interface GameState {
   readonly schemaVersion: 1;
   readonly ruleset: RulesetId;
@@ -73,6 +80,7 @@ export interface GameState {
   readonly productionCycle: number;
   readonly meetingScheduled: boolean;
   readonly activeActorId: PlayerId | 'sandra' | null;
+  readonly activeDepartmentAction: ActiveDepartmentAction;
   readonly players: readonly PlayerState[];
   readonly board: BoardState;
   readonly sandra: SandraState;

@@ -2,6 +2,7 @@ export * from './commands.js';
 export * from './constants.js';
 export * from './content.js';
 export * from './create-game.js';
+export * from './design.js';
 export * from './engine.js';
 export * from './enums.js';
 export * from './errors.js';

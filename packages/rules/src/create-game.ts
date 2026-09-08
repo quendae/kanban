@@ -63,6 +63,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     productionCycle: 0,
     meetingScheduled: false,
     activeActorId: null,
+    activeDepartmentAction: null,
     players,
     board,
     sandra: {
