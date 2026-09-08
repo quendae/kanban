@@ -1,4 +1,5 @@
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
+import { getPlayerDesigns, getPlayerParts } from './inventory.js';
 import type { GameState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
@@ -15,7 +16,9 @@ export type InvariantCode =
   | 'INVALID_WORK_CURSOR'
   | 'INVALID_WORK_ORDER'
   | 'WORKSTATION_DEPARTMENT_MISMATCH'
-  | 'INVALID_BASE_SHIFTS';
+  | 'INVALID_BASE_SHIFTS'
+  | 'PART_CAPACITY_EXCEEDED'
+  | 'DESIGN_CAPACITY_EXCEEDED';
 
 export interface InvariantViolation {
   readonly code: InvariantCode;
@@ -90,6 +93,20 @@ export function getInvariantViolations(
       violations.push({
         code: 'SHIFT_LIMIT_EXCEEDED',
         message: `${player.id} has invalid shifts spent today: ${player.shiftsSpentToday}`,
+      });
+    }
+
+    if (getPlayerParts(state, player.id).length > player.partCapacity) {
+      violations.push({
+        code: 'PART_CAPACITY_EXCEEDED',
+        message: `${player.id} exceeds part capacity ${player.partCapacity}`,
+      });
+    }
+
+    if (getPlayerDesigns(state, player.id).length > player.designCapacity) {
+      violations.push({
+        code: 'DESIGN_CAPACITY_EXCEEDED',
+        message: `${player.id} exceeds design capacity ${player.designCapacity}`,
       });
     }
 
