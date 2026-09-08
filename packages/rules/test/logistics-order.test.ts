@@ -9,7 +9,6 @@ import {
   type EntityLocation,
   type GameContent,
   type GameState,
-  type KanbanOrderId,
   type PartId,
 } from '../src/index.js';
 
