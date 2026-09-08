@@ -1,6 +1,7 @@
 import type { Department, GamePhase, PlayerCount, RulesetId } from './enums.js';
 import type { CarId, DesignId, PartId, PlayerId } from './ids.js';
 import type { RngState } from './rng.js';
+import type { WorkstationId } from './workstations.js';
 
 export type PlayerKind = 'HUMAN' | 'BOT';
 
@@ -12,6 +13,8 @@ export interface PlayerState {
   readonly shiftsSpentToday: number;
   readonly previousDepartment: Department | null;
   readonly currentDepartment: Department | null;
+  readonly currentWorkstation: WorkstationId | null;
+  readonly baseShiftsToday: number;
   readonly done: boolean;
   readonly books: number;
   readonly vouchers: number;
@@ -67,5 +70,9 @@ export interface GameState {
   readonly board: BoardState;
   readonly sandra: SandraState;
   readonly pendingRewards: readonly PendingReward[];
+  readonly selectionOrder: readonly PlayerId[];
+  readonly selectionCursor: number;
+  readonly workOrder: readonly PlayerId[];
+  readonly workCursor: number;
   readonly eventIndex: number;
 }

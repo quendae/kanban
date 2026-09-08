@@ -18,6 +18,8 @@ function createPlayer(index: number): PlayerState {
     shiftsSpentToday: 0,
     previousDepartment: null,
     currentDepartment: null,
+    currentWorkstation: null,
+    baseShiftsToday: 0,
     done: false,
     books: 0,
     vouchers: 0,
@@ -35,6 +37,8 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     parts: {},
     designs: {},
   };
+  const players = Array.from({ length: input.playerCount }, (_, index) => createPlayer(index));
+  const selectionOrder = players.map((player) => player.id);
 
   return {
     schemaVersion: 1,
@@ -48,13 +52,17 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     productionCycle: 0,
     meetingScheduled: false,
     activeActorId: null,
-    players: Array.from({ length: input.playerCount }, (_, index) => createPlayer(index)),
+    players,
     board,
     sandra: {
       department: 'SANDRA_DESK',
       mode: 'NICE',
     },
     pendingRewards: [],
+    selectionOrder,
+    selectionCursor: 0,
+    workOrder: [],
+    workCursor: 0,
     eventIndex: 0,
   };
 }

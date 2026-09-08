@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createShellGame } from '../src/create-game.js';
 import { applyCommand } from '../src/engine.js';
 import { getInvariantViolations, InvariantError } from '../src/invariants.js';
+import type { GameState } from '../src/model.js';
 
 describe('core invariants', () => {
   it('accepts a fresh shell state', () => {
@@ -95,5 +96,90 @@ describe('core invariants', () => {
     expect(() =>
       applyCommand(broken, { type: 'START_GAME', actorId: 'player:0' }),
     ).toThrow(InvariantError);
+  });
+
+  it('rejects two players occupying the same workstation', () => {
+    const state = createShellGame({ seed: 'duplicate-workstation', playerCount: 2 });
+    const broken: GameState = {
+      ...state,
+      players: state.players.map((player) => ({
+        ...player,
+        currentWorkstation: 'A_LEFT',
+        currentDepartment: 'TESTING_INNOVATION',
+        baseShiftsToday: 2,
+      })),
+    };
+
+    expect(getInvariantViolations(broken).map((violation) => violation.code)).toContain(
+      'DUPLICATE_WORKSTATION',
+    );
+  });
+
+  it('rejects selection and work cursors outside their sequence bounds', () => {
+    const state = createShellGame({ seed: 'cursors', playerCount: 3 });
+    const broken: GameState = {
+      ...state,
+      selectionCursor: state.selectionOrder.length + 1,
+      workCursor: -1,
+    };
+    const codes = getInvariantViolations(broken).map((violation) => violation.code);
+
+    expect(codes).toContain('INVALID_SELECTION_CURSOR');
+    expect(codes).toContain('INVALID_WORK_CURSOR');
+  });
+
+  it('rejects duplicate or incomplete player identities in work order during WORK', () => {
+    const state = createShellGame({ seed: 'work-order', playerCount: 3 });
+    const broken: GameState = {
+      ...state,
+      phase: 'WORK',
+      workOrder: ['player:0', 'player:0', 'player:2'],
+      workCursor: 0,
+      activeActorId: 'player:0',
+    };
+
+    expect(getInvariantViolations(broken).map((violation) => violation.code)).toContain(
+      'INVALID_WORK_ORDER',
+    );
+  });
+
+  it('rejects workstation and department mismatch', () => {
+    const state = createShellGame({ seed: 'department-mismatch', playerCount: 2 });
+    const broken: GameState = {
+      ...state,
+      players: [
+        {
+          ...state.players[0]!,
+          currentWorkstation: 'C_RIGHT',
+          currentDepartment: 'DESIGN',
+          baseShiftsToday: 3,
+        },
+        state.players[1]!,
+      ],
+    };
+
+    expect(getInvariantViolations(broken).map((violation) => violation.code)).toContain(
+      'WORKSTATION_DEPARTMENT_MISMATCH',
+    );
+  });
+
+  it('rejects base Shifts that do not match the selected workstation', () => {
+    const state = createShellGame({ seed: 'base-shifts', playerCount: 2 });
+    const broken: GameState = {
+      ...state,
+      players: [
+        {
+          ...state.players[0]!,
+          currentWorkstation: 'E_LEFT',
+          currentDepartment: 'ADMINISTRATION',
+          baseShiftsToday: 2,
+        },
+        state.players[1]!,
+      ],
+    };
+
+    expect(getInvariantViolations(broken).map((violation) => violation.code)).toContain(
+      'INVALID_BASE_SHIFTS',
+    );
   });
 });
