@@ -32,6 +32,7 @@ function createPlayer(index: number): PlayerState {
     partCapacity: BASE_PART_CAPACITY,
     designCapacity: BASE_DESIGN_CAPACITY,
     certifications: [],
+    kanbanOrders: [],
     kanbanOrderIssuedToday: false,
     logisticsVoucherTakenToday: false,
   };
@@ -66,6 +67,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     activeDepartmentAction: null,
     players,
     board,
+    kanbanOrderDeck: [],
     sandra: {
       department: 'SANDRA_DESK',
       mode: 'NICE',

@@ -124,6 +124,60 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'KANBAN_ORDER_ISSUED': {
+      const parts = { ...state.board.parts };
+      for (const move of event.refillMoves) {
+        parts[move.partId] = {
+          kind: 'BOARD',
+          area: `warehouse:${move.partType}`,
+          slot: move.destinationSlot,
+        };
+      }
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        players: state.players.map((player) => {
+          if (player.id !== event.playerId) return player;
+          const remainingOrders = player.kanbanOrders.filter((orderId) => orderId !== event.orderId);
+          return {
+            ...player,
+            shiftsSpentToday: player.shiftsSpentToday + 1,
+            kanbanOrderIssuedToday: true,
+            kanbanOrders:
+              event.replacementOrderId === null
+                ? remainingOrders
+                : [...remainingOrders, event.replacementOrderId],
+          };
+        }),
+        kanbanOrderDeck:
+          event.replacementOrderId === null
+            ? [...state.kanbanOrderDeck, event.orderId]
+            : [...state.kanbanOrderDeck.slice(1), event.orderId],
+        pendingRewards: [
+          ...state.pendingRewards,
+          { playerId: event.playerId, type: 'BANKED_SHIFT', amount: 1 },
+        ],
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'PARTS_VOUCHER_TAKEN':
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? {
+                ...player,
+                shiftsSpentToday: player.shiftsSpentToday + 1,
+                logisticsVoucherTakenToday: true,
+              }
+            : player,
+        ),
+        pendingRewards: [
+          ...state.pendingRewards,
+          { playerId: event.playerId, type: 'VOUCHER', amount: 1 },
+        ],
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return {

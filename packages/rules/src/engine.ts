@@ -15,6 +15,7 @@ import { getWarehouseParts } from './inventory.js';
 import {
   getMaximumCollectableQuantity,
   getPartCollection,
+  planKanbanOrderRefill,
 } from './logistics.js';
 import type { GameState, PlayerState } from './model.js';
 import { reduceEvent } from './reducer.js';
@@ -156,6 +157,37 @@ function collectPartsErrors(
   return errors;
 }
 
+function issueKanbanOrderErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'ISSUE_KANBAN_ORDER' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const player = getPlayer(state, command.actorId);
+  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  if (!player.kanbanOrders.includes(command.orderId)) errors.push('KANBAN_ORDER_NOT_IN_HAND');
+  if (player.kanbanOrderIssuedToday) errors.push('KANBAN_ORDER_ALREADY_ISSUED');
+  if (!state.content.kanbanOrders[command.orderId]) errors.push('KANBAN_ORDER_DEFINITION_MISSING');
+  if (!hasAvailableShift(state, command.actorId)) errors.push('INSUFFICIENT_SHIFTS');
+  return errors;
+}
+
+function takePartsVoucherErrors(
+  state: GameState,
+  playerId: PlayerId,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, playerId);
+  const player = getPlayer(state, playerId);
+  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  if (!player.certifications.includes('LOGISTICS')) {
+    errors.push('LOGISTICS_VOUCHER_REQUIRES_CERTIFICATION');
+  }
+  if (player.logisticsVoucherTakenToday) errors.push('LOGISTICS_VOUCHER_ALREADY_TAKEN');
+  if (!hasAvailableShift(state, playerId)) errors.push('INSUFFICIENT_SHIFTS');
+  return errors;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -202,19 +234,36 @@ export function getLegalCommands(
     }
 
     const player = getPlayer(state, playerId);
-    if (player.currentDepartment === 'LOGISTICS' && hasAvailableShift(state, playerId)) {
-      for (const partType of state.content.partTypes) {
-        const maximum = getMaximumCollectableQuantity(state, playerId, partType);
-        for (let quantity = 1; quantity <= maximum; quantity += 1) {
-          const command: GameCommand = {
-            type: 'COLLECT_PARTS',
-            actorId: playerId,
-            partType,
-            quantity,
-          };
-          if (collectPartsErrors(state, command).length === 0) commands.push(command);
+    if (player.currentDepartment === 'LOGISTICS' && state.activeDepartmentAction === null) {
+      if (hasAvailableShift(state, playerId)) {
+        for (const partType of state.content.partTypes) {
+          const maximum = getMaximumCollectableQuantity(state, playerId, partType);
+          for (let quantity = 1; quantity <= maximum; quantity += 1) {
+            const command: GameCommand = {
+              type: 'COLLECT_PARTS',
+              actorId: playerId,
+              partType,
+              quantity,
+            };
+            if (collectPartsErrors(state, command).length === 0) commands.push(command);
+          }
         }
       }
+
+      for (const orderId of player.kanbanOrders) {
+        for (const orientation of ['LEFT_FOUR', 'RIGHT_FOUR'] as const) {
+          const command: GameCommand = {
+            type: 'ISSUE_KANBAN_ORDER',
+            actorId: playerId,
+            orderId,
+            orientation,
+          };
+          if (issueKanbanOrderErrors(state, command).length === 0) commands.push(command);
+        }
+      }
+
+      const voucherCommand: GameCommand = { type: 'TAKE_PARTS_VOUCHER', actorId: playerId };
+      if (takePartsVoucherErrors(state, playerId).length === 0) commands.push(voucherCommand);
     }
     return commands;
   }
@@ -243,6 +292,10 @@ function validateCommand(
       return endDesignSelectionErrors(state, command.actorId);
     case 'COLLECT_PARTS':
       return collectPartsErrors(state, command);
+    case 'ISSUE_KANBAN_ORDER':
+      return issueKanbanOrderErrors(state, command);
+    case 'TAKE_PARTS_VOUCHER':
+      return takePartsVoucherErrors(state, command.actorId);
     case 'FINISH_WORK':
       return finishWorkErrors(state, command.actorId);
   }
@@ -339,6 +392,26 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         },
       ];
     }
+    case 'ISSUE_KANBAN_ORDER':
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'KANBAN_ORDER_ISSUED',
+          playerId: command.actorId,
+          orderId: command.orderId,
+          replacementOrderId: state.kanbanOrderDeck[0] ?? null,
+          orientation: command.orientation,
+          refillMoves: planKanbanOrderRefill(state, command.orderId, command.orientation),
+        },
+      ];
+    case 'TAKE_PARTS_VOUCHER':
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'PARTS_VOUCHER_TAKEN',
+          playerId: command.actorId,
+        },
+      ];
     case 'FINISH_WORK': {
       const finished: GameEvent = {
         id: makeId('event', state.eventIndex),

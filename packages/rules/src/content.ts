@@ -2,6 +2,7 @@ import type { DesignId, KanbanOrderId, PartId } from './ids.js';
 
 export type ModelId = `model:${number}`;
 export type PartTypeId = `part-type:${number}`;
+export type KanbanOrderOrientation = 'LEFT_FOUR' | 'RIGHT_FOUR';
 
 export const MODEL_IDS = [
   'model:0',
@@ -44,6 +45,12 @@ export interface KanbanOrderDefinition {
     PartTypeId,
     PartTypeId,
   ];
+  readonly refillByOrientation: Readonly<
+    Record<
+      KanbanOrderOrientation,
+      readonly [PartTypeId, PartTypeId, PartTypeId, PartTypeId]
+    >
+  >;
 }
 
 export interface GameContent {

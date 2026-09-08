@@ -1,6 +1,6 @@
 import type { GameContent } from './content.js';
 import type { Department, GamePhase, PlayerCount, RulesetId } from './enums.js';
-import type { CarId, DesignId, PartId, PlayerId } from './ids.js';
+import type { CarId, DesignId, KanbanOrderId, PartId, PlayerId } from './ids.js';
 import type { RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -23,6 +23,7 @@ export interface PlayerState {
   readonly partCapacity: number;
   readonly designCapacity: number;
   readonly certifications: readonly Department[];
+  readonly kanbanOrders: readonly KanbanOrderId[];
   readonly kanbanOrderIssuedToday: boolean;
   readonly logisticsVoucherTakenToday: boolean;
 }
@@ -83,6 +84,7 @@ export interface GameState {
   readonly activeDepartmentAction: ActiveDepartmentAction;
   readonly players: readonly PlayerState[];
   readonly board: BoardState;
+  readonly kanbanOrderDeck: readonly KanbanOrderId[];
   readonly sandra: SandraState;
   readonly pendingRewards: readonly PendingReward[];
   readonly selectionOrder: readonly PlayerId[];

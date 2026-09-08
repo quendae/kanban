@@ -1,5 +1,5 @@
-import type { PartTypeId } from './content.js';
-import type { DesignId, PlayerId } from './ids.js';
+import type { KanbanOrderOrientation, PartTypeId } from './content.js';
+import type { DesignId, KanbanOrderId, PlayerId } from './ids.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameCommand =
@@ -30,6 +30,16 @@ export type GameCommand =
       readonly actorId: PlayerId;
       readonly partType: PartTypeId;
       readonly quantity: number;
+    }
+  | {
+      readonly type: 'ISSUE_KANBAN_ORDER';
+      readonly actorId: PlayerId;
+      readonly orderId: KanbanOrderId;
+      readonly orientation: KanbanOrderOrientation;
+    }
+  | {
+      readonly type: 'TAKE_PARTS_VOUCHER';
+      readonly actorId: PlayerId;
     }
   | {
       readonly type: 'FINISH_WORK';

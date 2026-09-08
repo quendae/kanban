@@ -45,6 +45,12 @@ export function getWarehouseParts(state: GameState, partType: PartTypeId): PartI
   );
 }
 
+export function getSupplyParts(state: GameState, partType: PartTypeId): PartId[] {
+  return getOrderedIds(state.board.parts, (location) => location.kind === 'SUPPLY').filter(
+    (partId) => state.content.parts[partId]?.type === partType,
+  );
+}
+
 export function getPlayerParts(state: GameState, playerId: PlayerId): PartId[] {
   return getOrderedIds(state.board.parts, (location) =>
     location.kind === 'PLAYER' &&

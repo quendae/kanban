@@ -1,5 +1,7 @@
+import type { KanbanOrderOrientation } from './content.js';
 import type { DesignMove } from './design.js';
-import type { EventId, DesignId, PartId, PlayerId } from './ids.js';
+import type { DesignId, EventId, KanbanOrderId, PartId, PlayerId } from './ids.js';
+import type { WarehousePartMove } from './logistics.js';
 import type { PendingRewardType } from './model.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -41,6 +43,20 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly partIds: readonly PartId[];
       readonly destinationSlots: readonly number[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'KANBAN_ORDER_ISSUED';
+      readonly playerId: PlayerId;
+      readonly orderId: KanbanOrderId;
+      readonly replacementOrderId: KanbanOrderId | null;
+      readonly orientation: KanbanOrderOrientation;
+      readonly refillMoves: readonly WarehousePartMove[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'PARTS_VOUCHER_TAKEN';
+      readonly playerId: PlayerId;
     }
   | {
       readonly id: EventId;
