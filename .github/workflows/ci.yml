@@ -22,6 +22,12 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
+      - name: Print generated lockfile
+        run: |
+          echo '===PNPM_LOCKFILE_BEGIN==='
+          cat pnpm-lock.yaml
+          echo '===PNPM_LOCKFILE_END==='
+
       - name: Guard deterministic rules runtime
         run: |
           if grep -R --line-number --fixed-strings 'Math.random(' packages/rules/src; then
