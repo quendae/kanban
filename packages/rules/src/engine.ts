@@ -5,6 +5,7 @@ import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './invariants.js';
 import type { GameState } from './model.js';
 import { reduceEvent } from './reducer.js';
+import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
 export type CommandResult =
   | {
@@ -18,36 +19,93 @@ export type CommandResult =
       readonly errors: readonly RuleErrorCode[];
     };
 
+function isWorkstationOccupied(state: GameState, workstationId: WorkstationId): boolean {
+  return state.players.some((player) => player.currentWorkstation === workstationId);
+}
+
+function selectionErrors(
+  state: GameState,
+  playerId: PlayerId,
+  workstationId: WorkstationId,
+): readonly RuleErrorCode[] {
+  const errors: RuleErrorCode[] = [];
+  if (state.phase !== 'SELECT_DEPARTMENT') errors.push('WRONG_PHASE');
+  if (state.activeActorId !== playerId) errors.push('NOT_ACTIVE_ACTOR');
+
+  const station = getWorkstation(workstationId);
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (station.reservedForSandra) errors.push('WORKSTATION_RESERVED');
+  if (isWorkstationOccupied(state, workstationId)) errors.push('WORKSTATION_OCCUPIED');
+  if (player?.previousDepartment === station.department) {
+    errors.push('SAME_DEPARTMENT_AS_PREVIOUS_DAY');
+  }
+  if (
+    state.playerCount === 2 &&
+    state.sandra.department !== 'SANDRA_DESK' &&
+    state.sandra.department === station.department
+  ) {
+    errors.push('SANDRA_DEPARTMENT_BLOCKED');
+  }
+  return errors;
+}
+
 export function getLegalCommands(
   state: GameState,
   playerId: PlayerId,
 ): readonly GameCommand[] {
-  if (state.phase !== 'SETUP') {
-    return [];
+  if (state.phase === 'SETUP') {
+    const player = state.players.find((candidate) => candidate.id === playerId);
+    if (!player || player.kind !== 'HUMAN' || player.id !== 'player:0') return [];
+    return [{ type: 'START_GAME', actorId: playerId }];
   }
 
-  const player = state.players.find((candidate) => candidate.id === playerId);
-  if (!player || player.kind !== 'HUMAN' || player.id !== 'player:0') {
-    return [];
+  if (state.phase === 'SELECT_DEPARTMENT' && state.activeActorId === playerId) {
+    return WORKSTATIONS.filter(
+      (station) => selectionErrors(state, playerId, station.id).length === 0,
+    ).map((station) => ({
+      type: 'SELECT_WORKSTATION' as const,
+      actorId: playerId,
+      workstationId: station.id,
+    }));
   }
 
-  return [{ type: 'START_GAME', actorId: playerId }];
+  return [];
 }
 
 function validateCommand(
   state: GameState,
   command: GameCommand,
 ): readonly RuleErrorCode[] {
-  if (state.phase !== 'SETUP') {
-    return ['GAME_ALREADY_STARTED'];
+  switch (command.type) {
+    case 'START_GAME': {
+      if (state.phase !== 'SETUP') return ['GAME_ALREADY_STARTED'];
+      const actor = state.players.find((player) => player.id === command.actorId);
+      if (!actor || actor.kind !== 'HUMAN' || actor.id !== 'player:0') return ['WRONG_ACTOR'];
+      return [];
+    }
+    case 'SELECT_WORKSTATION':
+      return selectionErrors(state, command.actorId, command.workstationId);
   }
+}
 
-  const actor = state.players.find((player) => player.id === command.actorId);
-  if (!actor || actor.kind !== 'HUMAN' || actor.id !== 'player:0') {
-    return ['WRONG_ACTOR'];
-  }
-
-  return [];
+function workOrderAfterSelection(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'SELECT_WORKSTATION' }>,
+): readonly PlayerId[] {
+  return state.players
+    .map((player) => ({
+      id: player.id,
+      workstationId:
+        player.id === command.actorId ? command.workstationId : player.currentWorkstation,
+    }))
+    .filter(
+      (entry): entry is { readonly id: PlayerId; readonly workstationId: WorkstationId } =>
+        entry.workstationId !== null,
+    )
+    .sort(
+      (a, b) => getWorkstation(a.workstationId).order - getWorkstation(b.workstationId).order,
+    )
+    .map((entry) => entry.id);
 }
 
 function resolveCommand(state: GameState, command: GameCommand): readonly GameEvent[] {
@@ -59,6 +117,24 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           type: 'GAME_STARTED',
         },
       ];
+    case 'SELECT_WORKSTATION': {
+      const selected: GameEvent = {
+        id: makeId('event', state.eventIndex),
+        type: 'WORKSTATION_SELECTED',
+        playerId: command.actorId,
+        workstationId: command.workstationId,
+      };
+      const isLastSelection = state.selectionCursor === state.selectionOrder.length - 1;
+      if (!isLastSelection) return [selected];
+      return [
+        selected,
+        {
+          id: makeId('event', state.eventIndex + 1),
+          type: 'WORKING_PHASE_STARTED',
+          workOrder: workOrderAfterSelection(state, command),
+        },
+      ];
+    }
   }
 }
 
