@@ -57,6 +57,7 @@ export type GameEvent =
       readonly id: EventId;
       readonly type: 'PARTS_VOUCHER_TAKEN';
       readonly playerId: PlayerId;
+      readonly shiftCost: 0 | 1;
     }
   | {
       readonly id: EventId;

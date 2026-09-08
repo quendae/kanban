@@ -53,9 +53,18 @@ export interface KanbanOrderDefinition {
   >;
 }
 
+export interface GameRulesConfig {
+  readonly logisticsVoucherShiftCost: 0 | 1;
+}
+
+export const DEFAULT_GAME_RULES: GameRulesConfig = {
+  logisticsVoucherShiftCost: 0,
+};
+
 export interface GameContent {
   readonly id: string;
   readonly authoritative: boolean;
+  readonly rules?: GameRulesConfig;
   readonly models: readonly ModelId[];
   readonly partTypes: readonly PartTypeId[];
   readonly parts: Readonly<Partial<Record<PartId, PartDefinition>>>;
@@ -63,9 +72,14 @@ export interface GameContent {
   readonly kanbanOrders: Readonly<Partial<Record<KanbanOrderId, KanbanOrderDefinition>>>;
 }
 
+export function getGameRules(content: GameContent): GameRulesConfig {
+  return content.rules ?? DEFAULT_GAME_RULES;
+}
+
 export const EMPTY_GAME_CONTENT: GameContent = {
   id: 'empty-development-content',
   authoritative: false,
+  rules: DEFAULT_GAME_RULES,
   models: MODEL_IDS,
   partTypes: PART_TYPE_IDS,
   parts: {},

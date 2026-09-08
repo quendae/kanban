@@ -167,7 +167,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           player.id === event.playerId
             ? {
                 ...player,
-                shiftsSpentToday: player.shiftsSpentToday + 1,
+                shiftsSpentToday: player.shiftsSpentToday + event.shiftCost,
                 logisticsVoucherTakenToday: true,
               }
             : player,

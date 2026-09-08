@@ -31,6 +31,7 @@ function orderContent(): GameContent {
   return {
     id: 'order-test-content',
     authoritative: false,
+    rules: { logisticsVoucherShiftCost: 1 },
     models: MODEL_IDS,
     partTypes: PART_TYPE_IDS,
     parts,
@@ -214,7 +215,7 @@ describe('Logistics — Issue Kanban Order', () => {
 });
 
 describe('Logistics — certified Parts Voucher', () => {
-  it('costs 1 Shift, is once per day and the Voucher remains pending', () => {
+  it('uses the configured 1 Shift fixture cost, is once per day and the Voucher remains pending', () => {
     const state = workingOrderState(true);
     const result = applyCommand(state, {
       type: 'TAKE_PARTS_VOUCHER',
@@ -243,7 +244,7 @@ describe('Logistics — certified Parts Voucher', () => {
     if (twice.status === 'REJECTED') expect(twice.errors).toContain('LOGISTICS_VOUCHER_ALREADY_TAKEN');
   });
 
-  it('requires Logistics certification and an available Shift', () => {
+  it('requires Logistics certification and an available Shift when configured cost is 1', () => {
     const notCertified = applyCommand(workingOrderState(false), {
       type: 'TAKE_PARTS_VOUCHER',
       actorId: 'player:0',

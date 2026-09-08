@@ -1,5 +1,6 @@
 import type { GameCommand } from './commands.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
+import { getGameRules } from './content.js';
 import {
   getOldestDesignBonus,
   getOpenBlueprintSlot,
@@ -87,6 +88,10 @@ function activeWorkErrors(state: GameState, playerId: PlayerId): RuleErrorCode[]
 
 function hasAvailableShift(state: GameState, playerId: PlayerId): boolean {
   return getPlayer(state, playerId).shiftsSpentToday < getMaximumUsableShifts(state, playerId);
+}
+
+function canSpendShiftCost(state: GameState, playerId: PlayerId, cost: number): boolean {
+  return getPlayer(state, playerId).shiftsSpentToday + cost <= getMaximumUsableShifts(state, playerId);
 }
 
 function startDesignSelectionErrors(
@@ -184,7 +189,8 @@ function takePartsVoucherErrors(
     errors.push('LOGISTICS_VOUCHER_REQUIRES_CERTIFICATION');
   }
   if (player.logisticsVoucherTakenToday) errors.push('LOGISTICS_VOUCHER_ALREADY_TAKEN');
-  if (!hasAvailableShift(state, playerId)) errors.push('INSUFFICIENT_SHIFTS');
+  const shiftCost = getGameRules(state.content).logisticsVoucherShiftCost;
+  if (!canSpendShiftCost(state, playerId, shiftCost)) errors.push('INSUFFICIENT_SHIFTS');
   return errors;
 }
 
@@ -410,6 +416,7 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           id: makeId('event', state.eventIndex),
           type: 'PARTS_VOUCHER_TAKEN',
           playerId: command.actorId,
+          shiftCost: getGameRules(state.content).logisticsVoucherShiftCost,
         },
       ];
     case 'FINISH_WORK': {
