@@ -17,6 +17,10 @@ function rewardTotal(
     .reduce((total, reward) => total + reward.amount, 0);
 }
 
+function usedBankedShifts(baseShiftsToday: number, shiftsSpentToday: number): number {
+  return Math.max(0, shiftsSpentToday - baseShiftsToday);
+}
+
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
   switch (event.type) {
     case 'GAME_STARTED':
@@ -137,7 +141,12 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ...state,
         players: state.players.map((player) => ({
           ...player,
-          bankedShifts: player.bankedShifts + rewardTotal(state, player.id, 'BANKED_SHIFT'),
+          bankedShifts:
+            Math.max(
+              0,
+              player.bankedShifts -
+                usedBankedShifts(player.baseShiftsToday, player.shiftsSpentToday),
+            ) + rewardTotal(state, player.id, 'BANKED_SHIFT'),
           books: player.books + rewardTotal(state, player.id, 'BOOK'),
           vouchers: player.vouchers + rewardTotal(state, player.id, 'VOUCHER'),
           previousDepartment: player.currentDepartment,
