@@ -21,4 +21,9 @@ export type GameEvent =
       readonly id: EventId;
       readonly type: 'PLAYER_FINISHED_WORK';
       readonly playerId: PlayerId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DAY_ENDED';
+      readonly nextSelectionOrder: readonly PlayerId[];
     };

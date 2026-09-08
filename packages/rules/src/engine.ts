@@ -163,14 +163,23 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         },
       ];
     }
-    case 'FINISH_WORK':
+    case 'FINISH_WORK': {
+      const finished: GameEvent = {
+        id: makeId('event', state.eventIndex),
+        type: 'PLAYER_FINISHED_WORK',
+        playerId: command.actorId,
+      };
+      const isLastWorker = state.workCursor === state.workOrder.length - 1;
+      if (!isLastWorker) return [finished];
       return [
+        finished,
         {
-          id: makeId('event', state.eventIndex),
-          type: 'PLAYER_FINISHED_WORK',
-          playerId: command.actorId,
+          id: makeId('event', state.eventIndex + 1),
+          type: 'DAY_ENDED',
+          nextSelectionOrder: state.workOrder,
         },
       ];
+    }
   }
 }
 
