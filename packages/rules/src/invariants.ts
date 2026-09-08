@@ -1,5 +1,6 @@
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import type { GameState } from './model.js';
+import { getWorkstation } from './workstations.js';
 
 export type InvariantCode =
   | 'PLAYER_COUNT_MISMATCH'
@@ -8,7 +9,13 @@ export type InvariantCode =
   | 'SHIFT_LIMIT_EXCEEDED'
   | 'INVALID_WEEK'
   | 'INVALID_PRODUCTION_CYCLE'
-  | 'INVALID_EVENT_INDEX';
+  | 'INVALID_EVENT_INDEX'
+  | 'DUPLICATE_WORKSTATION'
+  | 'INVALID_SELECTION_CURSOR'
+  | 'INVALID_WORK_CURSOR'
+  | 'INVALID_WORK_ORDER'
+  | 'WORKSTATION_DEPARTMENT_MISMATCH'
+  | 'INVALID_BASE_SHIFTS';
 
 export interface InvariantViolation {
   readonly code: InvariantCode;
@@ -33,6 +40,10 @@ function isClockValue(value: number): boolean {
   return Number.isInteger(value) && value >= 0 && value <= 3;
 }
 
+function isCursorInBounds(value: number, length: number): boolean {
+  return Number.isInteger(value) && value >= 0 && value <= length;
+}
+
 export function getInvariantViolations(
   state: GameState,
 ): readonly InvariantViolation[] {
@@ -50,6 +61,16 @@ export function getInvariantViolations(
     violations.push({
       code: 'DUPLICATE_PLAYER_ID',
       message: 'Every player must have a unique ID',
+    });
+  }
+
+  const occupiedWorkstations = state.players
+    .map((player) => player.currentWorkstation)
+    .filter((workstation) => workstation !== null);
+  if (new Set(occupiedWorkstations).size !== occupiedWorkstations.length) {
+    violations.push({
+      code: 'DUPLICATE_WORKSTATION',
+      message: 'A player workstation may be occupied by at most one player',
     });
   }
 
@@ -71,6 +92,67 @@ export function getInvariantViolations(
         message: `${player.id} has invalid shifts spent today: ${player.shiftsSpentToday}`,
       });
     }
+
+    if (player.currentWorkstation === null) {
+      if (player.baseShiftsToday !== 0) {
+        violations.push({
+          code: 'INVALID_BASE_SHIFTS',
+          message: `${player.id} has base Shifts without a workstation: ${player.baseShiftsToday}`,
+        });
+      }
+      if (player.currentDepartment !== null) {
+        violations.push({
+          code: 'WORKSTATION_DEPARTMENT_MISMATCH',
+          message: `${player.id} has a current department without a workstation`,
+        });
+      }
+    } else {
+      const workstation = getWorkstation(player.currentWorkstation);
+      if (player.currentDepartment !== workstation.department) {
+        violations.push({
+          code: 'WORKSTATION_DEPARTMENT_MISMATCH',
+          message: `${player.id} workstation ${workstation.id} belongs to ${workstation.department}, not ${String(player.currentDepartment)}`,
+        });
+      }
+      if (player.baseShiftsToday !== workstation.shifts) {
+        violations.push({
+          code: 'INVALID_BASE_SHIFTS',
+          message: `${player.id} workstation ${workstation.id} grants ${workstation.shifts} base Shifts, got ${player.baseShiftsToday}`,
+        });
+      }
+    }
+  }
+
+  if (!isCursorInBounds(state.selectionCursor, state.selectionOrder.length)) {
+    violations.push({
+      code: 'INVALID_SELECTION_CURSOR',
+      message: `Selection cursor ${state.selectionCursor} is outside 0..${state.selectionOrder.length}`,
+    });
+  }
+
+  if (!isCursorInBounds(state.workCursor, state.workOrder.length)) {
+    violations.push({
+      code: 'INVALID_WORK_CURSOR',
+      message: `Work cursor ${state.workCursor} is outside 0..${state.workOrder.length}`,
+    });
+  }
+
+  const workOrderIds = new Set(state.workOrder);
+  const workOrderContainsOnlyPlayers = state.workOrder.every((playerId) => playerIds.has(playerId));
+  const workOrderHasAllPlayers =
+    state.workOrder.length === state.players.length &&
+    workOrderIds.size === state.players.length &&
+    state.players.every((player) => workOrderIds.has(player.id));
+
+  if (
+    workOrderIds.size !== state.workOrder.length ||
+    !workOrderContainsOnlyPlayers ||
+    (state.phase === 'WORK' && !workOrderHasAllPlayers)
+  ) {
+    violations.push({
+      code: 'INVALID_WORK_ORDER',
+      message: 'Work order must contain valid unique player IDs and all players during WORK',
+    });
   }
 
   if (!isClockValue(state.week)) {
