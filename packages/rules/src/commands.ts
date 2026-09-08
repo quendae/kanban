@@ -1,3 +1,4 @@
+import type { PartTypeId } from './content.js';
 import type { DesignId, PlayerId } from './ids.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -23,6 +24,12 @@ export type GameCommand =
   | {
       readonly type: 'END_DESIGN_SELECTION';
       readonly actorId: PlayerId;
+    }
+  | {
+      readonly type: 'COLLECT_PARTS';
+      readonly actorId: PlayerId;
+      readonly partType: PartTypeId;
+      readonly quantity: number;
     }
   | {
       readonly type: 'FINISH_WORK';

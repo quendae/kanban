@@ -11,6 +11,11 @@ import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './invariants.js';
+import { getWarehouseParts } from './inventory.js';
+import {
+  getMaximumCollectableQuantity,
+  getPartCollection,
+} from './logistics.js';
 import type { GameState, PlayerState } from './model.js';
 import { reduceEvent } from './reducer.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
@@ -79,6 +84,10 @@ function activeWorkErrors(state: GameState, playerId: PlayerId): RuleErrorCode[]
   return errors;
 }
 
+function hasAvailableShift(state: GameState, playerId: PlayerId): boolean {
+  return getPlayer(state, playerId).shiftsSpentToday < getMaximumUsableShifts(state, playerId);
+}
+
 function startDesignSelectionErrors(
   state: GameState,
   playerId: PlayerId,
@@ -105,9 +114,7 @@ function takeDesignErrors(
     errors.push('DESIGN_NOT_AVAILABLE');
   }
   if (!hasDesignCapacity(state, playerId)) errors.push('NO_DESIGN_SLOT');
-  if (getPlayer(state, playerId).shiftsSpentToday >= getMaximumUsableShifts(state, playerId)) {
-    errors.push('INSUFFICIENT_SHIFTS');
-  }
+  if (!hasAvailableShift(state, playerId)) errors.push('INSUFFICIENT_SHIFTS');
   return errors;
 }
 
@@ -122,6 +129,30 @@ function endDesignSelectionErrors(
   ) {
     errors.push('NO_ACTIVE_DESIGN_SELECTION');
   }
+  return errors;
+}
+
+function collectPartsErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'COLLECT_PARTS' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const player = getPlayer(state, command.actorId);
+  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+
+  if (!Number.isInteger(command.quantity) || command.quantity < 1) {
+    errors.push('INVALID_QUANTITY');
+    return errors;
+  }
+  if (getWarehouseParts(state, command.partType).length < command.quantity) {
+    errors.push('PARTS_NOT_AVAILABLE');
+  }
+  if (getPartCollection(state, command.actorId, command.partType, command.quantity) === null) {
+    const stockIsEnough = getWarehouseParts(state, command.partType).length >= command.quantity;
+    if (stockIsEnough) errors.push('NO_PART_STORAGE');
+  }
+  if (!hasAvailableShift(state, command.actorId)) errors.push('INSUFFICIENT_SHIFTS');
   return errors;
 }
 
@@ -169,6 +200,22 @@ export function getLegalCommands(
     if (startDesignSelectionErrors(state, playerId).length === 0) {
       commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
     }
+
+    const player = getPlayer(state, playerId);
+    if (player.currentDepartment === 'LOGISTICS' && hasAvailableShift(state, playerId)) {
+      for (const partType of state.content.partTypes) {
+        const maximum = getMaximumCollectableQuantity(state, playerId, partType);
+        for (let quantity = 1; quantity <= maximum; quantity += 1) {
+          const command: GameCommand = {
+            type: 'COLLECT_PARTS',
+            actorId: playerId,
+            partType,
+            quantity,
+          };
+          if (collectPartsErrors(state, command).length === 0) commands.push(command);
+        }
+      }
+    }
     return commands;
   }
 
@@ -194,6 +241,8 @@ function validateCommand(
       return takeDesignErrors(state, command.actorId, command.designId);
     case 'END_DESIGN_SELECTION':
       return endDesignSelectionErrors(state, command.actorId);
+    case 'COLLECT_PARTS':
+      return collectPartsErrors(state, command);
     case 'FINISH_WORK':
       return finishWorkErrors(state, command.actorId);
   }
@@ -222,12 +271,7 @@ function workOrderAfterSelection(
 function resolveCommand(state: GameState, command: GameCommand): readonly GameEvent[] {
   switch (command.type) {
     case 'START_GAME':
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'GAME_STARTED',
-        },
-      ];
+      return [{ id: makeId('event', state.eventIndex), type: 'GAME_STARTED' }];
     case 'SELECT_WORKSTATION': {
       const selected: GameEvent = {
         id: makeId('event', state.eventIndex),
@@ -277,6 +321,24 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           moves: planDesignReplenishment(state),
         },
       ];
+    case 'COLLECT_PARTS': {
+      const collection = getPartCollection(
+        state,
+        command.actorId,
+        command.partType,
+        command.quantity,
+      );
+      if (collection === null) throw new Error('Validated part collection cannot be resolved');
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'PARTS_COLLECTED',
+          playerId: command.actorId,
+          partIds: collection.partIds,
+          destinationSlots: collection.destinationSlots,
+        },
+      ];
+    }
     case 'FINISH_WORK': {
       const finished: GameEvent = {
         id: makeId('event', state.eventIndex),
@@ -299,13 +361,8 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
 
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const errors = validateCommand(state, command);
-
   if (errors.length > 0) {
-    return {
-      status: 'REJECTED',
-      state,
-      errors,
-    };
+    return { status: 'REJECTED', state, errors };
   }
 
   const events = resolveCommand(state, command);
@@ -313,12 +370,6 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
     (currentState, event) => reduceEvent(currentState, event),
     state,
   );
-
   assertInvariants(nextState);
-
-  return {
-    status: 'ACCEPTED',
-    state: nextState,
-    events,
-  };
+  return { status: 'ACCEPTED', state: nextState, events };
 }

@@ -58,10 +58,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
     case 'DESIGN_SELECTION_STARTED':
       return {
         ...state,
-        activeDepartmentAction: {
-          kind: 'DESIGN_SELECTION',
-          playerId: event.playerId,
-        },
+        activeDepartmentAction: { kind: 'DESIGN_SELECTION', playerId: event.playerId },
         eventIndex: state.eventIndex + 1,
       };
     case 'DESIGN_TAKEN':
@@ -87,10 +84,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         pendingRewards:
           event.bonus === null
             ? state.pendingRewards
-            : [
-                ...state.pendingRewards,
-                { playerId: event.playerId, type: event.bonus, amount: 1 },
-              ],
+            : [...state.pendingRewards, { playerId: event.playerId, type: event.bonus, amount: 1 }],
         eventIndex: state.eventIndex + 1,
       };
     case 'DESIGN_SELECTION_ENDED': {
@@ -100,6 +94,29 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ...state,
         board: { ...state.board, designs },
         activeDepartmentAction: null,
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'PARTS_COLLECTED': {
+      const parts = { ...state.board.parts };
+      event.partIds.forEach((partId, index) => {
+        const slot = event.destinationSlots[index];
+        if (slot === undefined) throw new Error('PARTS_COLLECTED destination slot mismatch');
+        parts[partId] = {
+          kind: 'PLAYER',
+          playerId: event.playerId,
+          area: 'parts',
+          slot,
+        };
+      });
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
         eventIndex: state.eventIndex + 1,
       };
     }
@@ -120,8 +137,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ...state,
         players: state.players.map((player) => ({
           ...player,
-          bankedShifts:
-            player.bankedShifts + rewardTotal(state, player.id, 'BANKED_SHIFT'),
+          bankedShifts: player.bankedShifts + rewardTotal(state, player.id, 'BANKED_SHIFT'),
           books: player.books + rewardTotal(state, player.id, 'BOOK'),
           vouchers: player.vouchers + rewardTotal(state, player.id, 'VOUCHER'),
           previousDepartment: player.currentDepartment,

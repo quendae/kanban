@@ -10,6 +10,7 @@ export * from './events.js';
 export * from './ids.js';
 export * from './inventory.js';
 export * from './invariants.js';
+export * from './logistics.js';
 export * from './model.js';
 export * from './reducer.js';
 export * from './rng.js';
