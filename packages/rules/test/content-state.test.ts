@@ -11,6 +11,7 @@ import {
   getRecyclingParts,
   getWarehouseParts,
   type DesignId,
+  type EntityLocation,
   type GameContent,
   type PartId,
 } from '../src/index.js';
@@ -86,16 +87,16 @@ describe('M2 content and inventory state', () => {
     const state = createShellGame({ seed: 'm2-overflow', playerCount: 2 });
     const parts = Object.fromEntries(
       Array.from({ length: 6 }, (_, index) => [
-        `part:${index}`,
-        { kind: 'PLAYER', playerId: 'player:0', area: 'parts', slot: index },
+        `part:${index}` as PartId,
+        { kind: 'PLAYER', playerId: 'player:0', area: 'parts', slot: index } satisfies EntityLocation,
       ]),
-    );
+    ) as Partial<Record<PartId, EntityLocation>>;
     const designs = Object.fromEntries(
       Array.from({ length: 5 }, (_, index) => [
-        `design:${index}`,
-        { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: index },
+        `design:${index}` as DesignId,
+        { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: index } satisfies EntityLocation,
       ]),
-    );
+    ) as Partial<Record<DesignId, EntityLocation>>;
     const broken = {
       ...state,
       board: { ...state.board, parts, designs },
