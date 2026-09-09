@@ -25,6 +25,7 @@ import {
 } from './design.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
+import { planTrainingAdvance } from './hr.js';
 import { makeId, type PlayerId, type UpgradeSpaceId } from './ids.js';
 import { assertInvariants } from './invariants.js';
 import {
@@ -269,71 +270,43 @@ function provideAssemblyPartErrors(
     const pushPlan = planAssemblyPush(preparedState, command.model, command.pathChoices ?? []);
     if (!pushPlan.ok) {
       switch (pushPlan.reason) {
-        case 'PATH_CHOICE_REQUIRED':
-          errors.push('ASSEMBLY_PATH_CHOICE_REQUIRED');
-          break;
-        case 'INVALID_PATH_CHOICE':
-          errors.push('ASSEMBLY_PATH_CHOICE_INVALID');
-          break;
+        case 'PATH_CHOICE_REQUIRED': errors.push('ASSEMBLY_PATH_CHOICE_REQUIRED'); break;
+        case 'INVALID_PATH_CHOICE': errors.push('ASSEMBLY_PATH_CHOICE_INVALID'); break;
         case 'CAR_NOT_AVAILABLE':
-          if (!errors.includes('ASSEMBLY_CAR_NOT_AVAILABLE')) {
-            errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
-          }
+          if (!errors.includes('ASSEMBLY_CAR_NOT_AVAILABLE')) errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
           break;
-        default:
-          errors.push('ASSEMBLY_PUSH_GRAPH_INVALID');
-          break;
+        default: errors.push('ASSEMBLY_PUSH_GRAPH_INVALID'); break;
       }
     }
   }
-
   return errors;
 }
 
-function claimCarsErrors(
-  state: GameState,
-  command: Extract<GameCommand, { readonly type: 'CLAIM_CARS' }>,
-): readonly RuleErrorCode[] {
+function claimCarsErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'CLAIM_CARS' }>): readonly RuleErrorCode[] {
   const plan = planCarClaim(state, command);
   return plan.ok ? [] : plan.errors;
 }
 
-function upgradeDesignErrors(
-  state: GameState,
-  command: Extract<GameCommand, { readonly type: 'UPGRADE_DESIGN' }>,
-): readonly RuleErrorCode[] {
+function upgradeDesignErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'UPGRADE_DESIGN' }>): readonly RuleErrorCode[] {
   const plan = planDesignUpgrade(state, command);
   return plan.ok ? [] : plan.errors;
 }
 
-function recyclingSwapErrors(
-  state: GameState,
-  command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
-): readonly RuleErrorCode[] {
+function trainingErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'TRAIN_DEPARTMENT' }>): readonly RuleErrorCode[] {
+  const plan = planTrainingAdvance(state, command);
+  return plan.ok ? [] : plan.errors;
+}
+
+function recyclingSwapErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
-  const plan = getRecyclingSwapPlan(
-    state,
-    command.actorId,
-    command.outgoingPartId,
-    command.incomingPartId,
-  );
+  const plan = getRecyclingSwapPlan(state, command.actorId, command.outgoingPartId, command.incomingPartId);
   if (!plan.ok) {
     switch (plan.reason) {
-      case 'OUTGOING_NOT_OWNED':
-        errors.push('RECYCLING_OUTGOING_NOT_OWNED');
-        break;
-      case 'INCOMING_NOT_AVAILABLE':
-        errors.push('RECYCLING_INCOMING_NOT_AVAILABLE');
-        break;
-      case 'TYPE_OCCUPIED':
-        errors.push('RECYCLING_TYPE_OCCUPIED');
-        break;
-      case 'PART_DEFINITION_MISSING':
-        errors.push('RECYCLING_PART_DEFINITION_MISSING');
-        break;
-      case 'POOL_INVALID':
-        errors.push('RECYCLING_POOL_INVALID');
-        break;
+      case 'OUTGOING_NOT_OWNED': errors.push('RECYCLING_OUTGOING_NOT_OWNED'); break;
+      case 'INCOMING_NOT_AVAILABLE': errors.push('RECYCLING_INCOMING_NOT_AVAILABLE'); break;
+      case 'TYPE_OCCUPIED': errors.push('RECYCLING_TYPE_OCCUPIED'); break;
+      case 'PART_DEFINITION_MISSING': errors.push('RECYCLING_PART_DEFINITION_MISSING'); break;
+      case 'POOL_INVALID': errors.push('RECYCLING_POOL_INVALID'); break;
     }
   }
   return errors;
@@ -344,12 +317,7 @@ function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCo
   const commands: GameCommand[] = [];
   for (const outgoingPartId of getPlayerParts(state, playerId)) {
     for (const incomingPartId of getRecyclingParts(state)) {
-      const command: GameCommand = {
-        type: 'SWAP_RECYCLING_PART',
-        actorId: playerId,
-        outgoingPartId,
-        incomingPartId,
-      };
+      const command: GameCommand = { type: 'SWAP_RECYCLING_PART', actorId: playerId, outgoingPartId, incomingPartId };
       if (recyclingSwapErrors(state, command).length === 0) commands.push(command);
     }
   }
@@ -358,36 +326,16 @@ function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCo
 
 function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCommand[] {
   const player = state.players.find((candidate) => candidate.id === playerId);
-  if (
-    state.phase !== 'WORK' ||
-    state.activeActorId !== playerId ||
-    player?.currentDepartment !== 'ASSEMBLY' ||
-    state.activeDepartmentAction !== null
-  ) {
-    return [];
-  }
-
+  if (state.phase !== 'WORK' || state.activeActorId !== playerId || player?.currentDepartment !== 'ASSEMBLY' || state.activeDepartmentAction !== null) return [];
   const preparedState = previewAssemblyTurnStartCleanup(state, playerId);
   const commands: GameCommand[] = [];
   for (const model of state.content.models) {
     const pathSequences = getAssemblyPathChoiceSequences(preparedState, model);
     for (const partId of getPlayerParts(state, playerId)) {
       for (const pathChoices of pathSequences) {
-        const command: GameCommand =
-          pathChoices.length === 0
-            ? {
-                type: 'PROVIDE_ASSEMBLY_PART',
-                actorId: playerId,
-                model,
-                partId,
-              }
-            : {
-                type: 'PROVIDE_ASSEMBLY_PART',
-                actorId: playerId,
-                model,
-                partId,
-                pathChoices,
-              };
+        const command: GameCommand = pathChoices.length === 0
+          ? { type: 'PROVIDE_ASSEMBLY_PART', actorId: playerId, model, partId }
+          : { type: 'PROVIDE_ASSEMBLY_PART', actorId: playerId, model, partId, pathChoices };
         if (provideAssemblyPartErrors(state, command).length === 0) commands.push(command);
       }
     }
@@ -397,29 +345,14 @@ function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCom
 
 function getLegalTestingCommands(state: GameState, playerId: PlayerId): GameCommand[] {
   const player = state.players.find((candidate) => candidate.id === playerId);
-  if (
-    state.phase !== 'WORK' ||
-    state.activeActorId !== playerId ||
-    player?.currentDepartment !== 'TESTING_INNOVATION' ||
-    state.activeDepartmentAction !== null
-  ) {
-    return [];
-  }
-
+  if (state.phase !== 'WORK' || state.activeActorId !== playerId || player?.currentDepartment !== 'TESTING_INNOVATION' || state.activeDepartmentAction !== null) return [];
   const commands: GameCommand[] = [];
   const upgradeSpaceIds = Object.keys(state.content.upgradeSpaces) as UpgradeSpaceId[];
   for (const designId of getPlayerDesigns(state, playerId)) {
     for (const partId of getPlayerParts(state, playerId)) {
       for (const upgradeSpaceId of upgradeSpaceIds) {
         for (const doubleUpgrade of [false, true] as const) {
-          const command: GameCommand = {
-            type: 'UPGRADE_DESIGN',
-            actorId: playerId,
-            designId,
-            partId,
-            upgradeSpaceId,
-            doubleUpgrade,
-          };
+          const command: GameCommand = { type: 'UPGRADE_DESIGN', actorId: playerId, designId, partId, upgradeSpaceId, doubleUpgrade };
           if (upgradeDesignErrors(state, command).length === 0) commands.push(command);
         }
       }
@@ -434,94 +367,62 @@ function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleEr
   return errors;
 }
 
-export function getLegalCommands(
-  state: GameState,
-  playerId: PlayerId,
-): readonly GameCommand[] {
+export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
   if (state.phase === 'SETUP') {
     const player = state.players.find((candidate) => candidate.id === playerId);
     if (!player || player.kind !== 'HUMAN' || player.id !== 'player:0') return [];
     return [{ type: 'START_GAME', actorId: playerId }];
   }
-
   if (state.phase === 'SELECT_DEPARTMENT' && state.activeActorId === playerId) {
-    return WORKSTATIONS.filter(
-      (station) => selectionErrors(state, playerId, station.id).length === 0,
-    ).map((station) => ({
-      type: 'SELECT_WORKSTATION' as const,
-      actorId: playerId,
-      workstationId: station.id,
-    }));
+    return WORKSTATIONS.filter((station) => selectionErrors(state, playerId, station.id).length === 0).map((station) => ({ type: 'SELECT_WORKSTATION' as const, actorId: playerId, workstationId: station.id }));
   }
-
   if (state.phase === 'WORK' && state.activeActorId === playerId) {
     const recyclingCommands = getLegalRecyclingCommands(state, playerId);
-    if (
-      state.activeDepartmentAction?.kind === 'DESIGN_SELECTION' &&
-      state.activeDepartmentAction.playerId === playerId
-    ) {
-      const takeCommands = getSelectableDesignIds(state, playerId)
-        .filter((designId) => takeDesignErrors(state, playerId, designId).length === 0)
-        .map((designId) => ({ type: 'TAKE_DESIGN' as const, actorId: playerId, designId }));
-      return [
-        ...takeCommands,
-        ...recyclingCommands,
-        { type: 'END_DESIGN_SELECTION' as const, actorId: playerId },
-      ];
+    if (state.activeDepartmentAction?.kind === 'DESIGN_SELECTION' && state.activeDepartmentAction.playerId === playerId) {
+      const takeCommands = getSelectableDesignIds(state, playerId).filter((designId) => takeDesignErrors(state, playerId, designId).length === 0).map((designId) => ({ type: 'TAKE_DESIGN' as const, actorId: playerId, designId }));
+      return [...takeCommands, ...recyclingCommands, { type: 'END_DESIGN_SELECTION' as const, actorId: playerId }];
     }
-
     const commands: GameCommand[] = [
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
       ...getLegalAssemblyCommands(state, playerId),
       ...getLegalTestingCommands(state, playerId),
     ];
-    if (startDesignSelectionErrors(state, playerId).length === 0) {
-      commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
-    }
+    if (startDesignSelectionErrors(state, playerId).length === 0) commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
 
     const player = getPlayer(state, playerId);
+    if (player.currentDepartment !== null && state.activeDepartmentAction === null) {
+      for (const source of ['SHIFT', 'BOOK'] as const) {
+        const command: GameCommand = { type: 'TRAIN_DEPARTMENT', actorId: playerId, department: player.currentDepartment, source };
+        if (trainingErrors(state, command).length === 0) commands.push(command);
+      }
+    }
+
     if (player.currentDepartment === 'LOGISTICS' && state.activeDepartmentAction === null) {
       if (hasAvailableShift(state, playerId)) {
         for (const partType of state.content.partTypes) {
           const maximum = getMaximumCollectableQuantity(state, playerId, partType);
           for (let quantity = 1; quantity <= maximum; quantity += 1) {
-            const command: GameCommand = {
-              type: 'COLLECT_PARTS',
-              actorId: playerId,
-              partType,
-              quantity,
-            };
+            const command: GameCommand = { type: 'COLLECT_PARTS', actorId: playerId, partType, quantity };
             if (collectPartsErrors(state, command).length === 0) commands.push(command);
           }
         }
       }
-
       for (const orderId of player.kanbanOrders) {
         for (const orientation of ['LEFT_FOUR', 'RIGHT_FOUR'] as const) {
-          const command: GameCommand = {
-            type: 'ISSUE_KANBAN_ORDER',
-            actorId: playerId,
-            orderId,
-            orientation,
-          };
+          const command: GameCommand = { type: 'ISSUE_KANBAN_ORDER', actorId: playerId, orderId, orientation };
           if (issueKanbanOrderErrors(state, command).length === 0) commands.push(command);
         }
       }
-
       const voucherCommand: GameCommand = { type: 'TAKE_PARTS_VOUCHER', actorId: playerId };
       if (takePartsVoucherErrors(state, playerId).length === 0) commands.push(voucherCommand);
     }
     return commands;
   }
-
   return [];
 }
 
-function validateCommand(
-  state: GameState,
-  command: GameCommand,
-): readonly RuleErrorCode[] {
+function validateCommand(state: GameState, command: GameCommand): readonly RuleErrorCode[] {
   switch (command.type) {
     case 'START_GAME': {
       if (state.phase !== 'SETUP') return ['GAME_ALREADY_STARTED'];
@@ -529,291 +430,99 @@ function validateCommand(
       if (!actor || actor.kind !== 'HUMAN' || actor.id !== 'player:0') return ['WRONG_ACTOR'];
       return [];
     }
-    case 'SELECT_WORKSTATION':
-      return selectionErrors(state, command.actorId, command.workstationId);
-    case 'START_DESIGN_SELECTION':
-      return startDesignSelectionErrors(state, command.actorId);
-    case 'TAKE_DESIGN':
-      return takeDesignErrors(state, command.actorId, command.designId);
-    case 'END_DESIGN_SELECTION':
-      return endDesignSelectionErrors(state, command.actorId);
-    case 'COLLECT_PARTS':
-      return collectPartsErrors(state, command);
-    case 'ISSUE_KANBAN_ORDER':
-      return issueKanbanOrderErrors(state, command);
-    case 'TAKE_PARTS_VOUCHER':
-      return takePartsVoucherErrors(state, command.actorId);
-    case 'PROVIDE_ASSEMBLY_PART':
-      return provideAssemblyPartErrors(state, command);
-    case 'CLAIM_CARS':
-      return claimCarsErrors(state, command);
-    case 'UPGRADE_DESIGN':
-      return upgradeDesignErrors(state, command);
-    case 'SWAP_RECYCLING_PART':
-      return recyclingSwapErrors(state, command);
-    case 'FINISH_WORK':
-      return finishWorkErrors(state, command.actorId);
+    case 'SELECT_WORKSTATION': return selectionErrors(state, command.actorId, command.workstationId);
+    case 'START_DESIGN_SELECTION': return startDesignSelectionErrors(state, command.actorId);
+    case 'TAKE_DESIGN': return takeDesignErrors(state, command.actorId, command.designId);
+    case 'END_DESIGN_SELECTION': return endDesignSelectionErrors(state, command.actorId);
+    case 'COLLECT_PARTS': return collectPartsErrors(state, command);
+    case 'ISSUE_KANBAN_ORDER': return issueKanbanOrderErrors(state, command);
+    case 'TAKE_PARTS_VOUCHER': return takePartsVoucherErrors(state, command.actorId);
+    case 'PROVIDE_ASSEMBLY_PART': return provideAssemblyPartErrors(state, command);
+    case 'CLAIM_CARS': return claimCarsErrors(state, command);
+    case 'UPGRADE_DESIGN': return upgradeDesignErrors(state, command);
+    case 'SWAP_RECYCLING_PART': return recyclingSwapErrors(state, command);
+    case 'TRAIN_DEPARTMENT': return trainingErrors(state, command);
+    case 'FINISH_WORK': return finishWorkErrors(state, command.actorId);
   }
 }
 
-function workOrderAfterSelection(
-  state: GameState,
-  command: Extract<GameCommand, { readonly type: 'SELECT_WORKSTATION' }>,
-): readonly PlayerId[] {
+function workOrderAfterSelection(state: GameState, command: Extract<GameCommand, { readonly type: 'SELECT_WORKSTATION' }>): readonly PlayerId[] {
   return state.players
-    .map((player) => ({
-      id: player.id,
-      workstationId:
-        player.id === command.actorId ? command.workstationId : player.currentWorkstation,
-    }))
-    .filter(
-      (entry): entry is { readonly id: PlayerId; readonly workstationId: WorkstationId } =>
-        entry.workstationId !== null,
-    )
-    .sort(
-      (a, b) => getWorkstation(a.workstationId).order - getWorkstation(b.workstationId).order,
-    )
+    .map((player) => ({ id: player.id, workstationId: player.id === command.actorId ? command.workstationId : player.currentWorkstation }))
+    .filter((entry): entry is { readonly id: PlayerId; readonly workstationId: WorkstationId } => entry.workstationId !== null)
+    .sort((a, b) => getWorkstation(a.workstationId).order - getWorkstation(b.workstationId).order)
     .map((entry) => entry.id);
 }
 
 function resolveCommand(state: GameState, command: GameCommand): readonly GameEvent[] {
   switch (command.type) {
-    case 'START_GAME':
-      return [{ id: makeId('event', state.eventIndex), type: 'GAME_STARTED' }];
+    case 'START_GAME': return [{ id: makeId('event', state.eventIndex), type: 'GAME_STARTED' }];
     case 'SELECT_WORKSTATION': {
-      const selected: GameEvent = {
-        id: makeId('event', state.eventIndex),
-        type: 'WORKSTATION_SELECTED',
-        playerId: command.actorId,
-        workstationId: command.workstationId,
-      };
-      const isLastSelection = state.selectionCursor === state.selectionOrder.length - 1;
-      if (!isLastSelection) return [selected];
-      return [
-        selected,
-        {
-          id: makeId('event', state.eventIndex + 1),
-          type: 'WORKING_PHASE_STARTED',
-          workOrder: workOrderAfterSelection(state, command),
-        },
-      ];
+      const selected: GameEvent = { id: makeId('event', state.eventIndex), type: 'WORKSTATION_SELECTED', playerId: command.actorId, workstationId: command.workstationId };
+      if (state.selectionCursor !== state.selectionOrder.length - 1) return [selected];
+      return [selected, { id: makeId('event', state.eventIndex + 1), type: 'WORKING_PHASE_STARTED', workOrder: workOrderAfterSelection(state, command) }];
     }
-    case 'START_DESIGN_SELECTION':
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'DESIGN_SELECTION_STARTED',
-          playerId: command.actorId,
-        },
-      ];
+    case 'START_DESIGN_SELECTION': return [{ id: makeId('event', state.eventIndex), type: 'DESIGN_SELECTION_STARTED', playerId: command.actorId }];
     case 'TAKE_DESIGN': {
       const destinationSlot = getOpenBlueprintSlot(state, command.actorId);
       if (destinationSlot === null) throw new Error('Validated Design take has no destination slot');
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'DESIGN_TAKEN',
-          playerId: command.actorId,
-          designId: command.designId,
-          destinationSlot,
-          bonus: getOldestDesignBonus(state, command.designId),
-        },
-      ];
+      return [{ id: makeId('event', state.eventIndex), type: 'DESIGN_TAKEN', playerId: command.actorId, designId: command.designId, destinationSlot, bonus: getOldestDesignBonus(state, command.designId) }];
     }
-    case 'END_DESIGN_SELECTION':
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'DESIGN_SELECTION_ENDED',
-          playerId: command.actorId,
-          moves: planDesignReplenishment(state),
-        },
-      ];
+    case 'END_DESIGN_SELECTION': return [{ id: makeId('event', state.eventIndex), type: 'DESIGN_SELECTION_ENDED', playerId: command.actorId, moves: planDesignReplenishment(state) }];
     case 'COLLECT_PARTS': {
-      const collection = getPartCollection(
-        state,
-        command.actorId,
-        command.partType,
-        command.quantity,
-      );
+      const collection = getPartCollection(state, command.actorId, command.partType, command.quantity);
       if (collection === null) throw new Error('Validated part collection cannot be resolved');
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'PARTS_COLLECTED',
-          playerId: command.actorId,
-          partIds: collection.partIds,
-          destinationSlots: collection.destinationSlots,
-        },
-      ];
+      return [{ id: makeId('event', state.eventIndex), type: 'PARTS_COLLECTED', playerId: command.actorId, partIds: collection.partIds, destinationSlots: collection.destinationSlots }];
     }
-    case 'ISSUE_KANBAN_ORDER':
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'KANBAN_ORDER_ISSUED',
-          playerId: command.actorId,
-          orderId: command.orderId,
-          replacementOrderId: state.kanbanOrderDeck[0] ?? null,
-          orientation: command.orientation,
-          refillMoves: planKanbanOrderRefill(state, command.orderId, command.orientation),
-        },
-      ];
-    case 'TAKE_PARTS_VOUCHER':
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'PARTS_VOUCHER_TAKEN',
-          playerId: command.actorId,
-          shiftCost: getGameRules(state.content).logisticsVoucherShiftCost,
-        },
-      ];
+    case 'ISSUE_KANBAN_ORDER': return [{ id: makeId('event', state.eventIndex), type: 'KANBAN_ORDER_ISSUED', playerId: command.actorId, orderId: command.orderId, replacementOrderId: state.kanbanOrderDeck[0] ?? null, orientation: command.orientation, refillMoves: planKanbanOrderRefill(state, command.orderId, command.orientation) }];
+    case 'TAKE_PARTS_VOUCHER': return [{ id: makeId('event', state.eventIndex), type: 'PARTS_VOUCHER_TAKEN', playerId: command.actorId, shiftCost: getGameRules(state.content).logisticsVoucherShiftCost }];
     case 'PROVIDE_ASSEMBLY_PART': {
       const destinationSlot = getAssemblyDestinationSlot(state, command.model);
-      if (destinationSlot === null) {
-        throw new Error('Validated Assembly part delivery has no destination slot');
-      }
+      if (destinationSlot === null) throw new Error('Validated Assembly part delivery has no destination slot');
       const pushPlan = planAssemblyPush(state, command.model, command.pathChoices ?? []);
-      if (!pushPlan.ok) {
-        throw new Error(`Validated Assembly car push cannot resolve: ${pushPlan.reason}`);
-      }
-
-      const events: GameEvent[] = [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'ASSEMBLY_PART_PROVIDED',
-          playerId: command.actorId,
-          model: command.model,
-          partId: command.partId,
-          destinationSlot,
-        },
-      ];
-      if (pushPlan.moves.length > 0 || pushPlan.ppAwarded > 0) {
-        events.push({
-          id: makeId('event', state.eventIndex + events.length),
-          type: 'ASSEMBLY_CAR_CHAIN_RESOLVED',
-          playerId: command.actorId,
-          moves: pushPlan.moves,
-          ppAwarded: pushPlan.ppAwarded,
-        });
-      }
-
+      if (!pushPlan.ok) throw new Error(`Validated Assembly car push cannot resolve: ${pushPlan.reason}`);
+      const events: GameEvent[] = [{ id: makeId('event', state.eventIndex), type: 'ASSEMBLY_PART_PROVIDED', playerId: command.actorId, model: command.model, partId: command.partId, destinationSlot }];
+      if (pushPlan.moves.length > 0 || pushPlan.ppAwarded > 0) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'ASSEMBLY_CAR_CHAIN_RESOLVED', playerId: command.actorId, moves: pushPlan.moves, ppAwarded: pushPlan.ppAwarded });
       if (willCompleteAssemblyModel(state, command.model)) {
         const demandId = getMatchingDemandId(state, command.model);
-        if (demandId !== null) {
-          events.push({
-            id: makeId('event', state.eventIndex + events.length),
-            type: 'DEMAND_RED_SEAT_CONSUMED',
-            playerId: command.actorId,
-            demandId,
-          });
-        }
+        if (demandId !== null) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DEMAND_RED_SEAT_CONSUMED', playerId: command.actorId, demandId });
       }
       return events;
     }
     case 'CLAIM_CARS': {
       const plan = planCarClaim(state, command);
-      if (!plan.ok) {
-        throw new Error(`Validated car claim cannot resolve: ${plan.errors.join(',')}`);
-      }
-      const events: GameEvent[] = [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'CARS_CLAIMED',
-          playerId: command.actorId,
-          shiftCost: plan.shiftCost,
-          placements: plan.placements,
-          trackMoves: plan.trackMoves,
-          designMoves: plan.designMoves,
-          garageBenefits: plan.garageBenefits,
-          paceCarPosition: plan.paceCarPosition,
-        },
-      ];
+      if (!plan.ok) throw new Error(`Validated car claim cannot resolve: ${plan.errors.join(',')}`);
+      const events: GameEvent[] = [{ id: makeId('event', state.eventIndex), type: 'CARS_CLAIMED', playerId: command.actorId, shiftCost: plan.shiftCost, placements: plan.placements, trackMoves: plan.trackMoves, designMoves: plan.designMoves, garageBenefits: plan.garageBenefits, paceCarPosition: plan.paceCarPosition }];
       const meetingTrigger = getPaceCarMeetingTrigger(state, plan.paceCarPosition);
-      if (meetingTrigger !== null) {
-        events.push({
-          id: makeId('event', state.eventIndex + events.length),
-          type: 'MEETING_SCHEDULED',
-          previousPaceCarPosition: meetingTrigger.previousPaceCarPosition,
-          newPaceCarPosition: meetingTrigger.newPaceCarPosition,
-          threshold: meetingTrigger.threshold,
-        });
-      }
+      if (meetingTrigger !== null) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'MEETING_SCHEDULED', previousPaceCarPosition: meetingTrigger.previousPaceCarPosition, newPaceCarPosition: meetingTrigger.newPaceCarPosition, threshold: meetingTrigger.threshold });
       return events;
     }
     case 'UPGRADE_DESIGN': {
       const plan = planDesignUpgrade(state, command);
-      if (!plan.ok) {
-        throw new Error(`Validated Design upgrade cannot resolve: ${plan.errors.join(',')}`);
-      }
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'DESIGN_UPGRADED',
-          playerId: plan.playerId,
-          designId: plan.designId,
-          partId: plan.partId,
-          upgradeSpaceId: plan.upgradeSpaceId,
-          partType: plan.partType,
-          doubleUpgrade: plan.doubleUpgrade,
-          previousPartValue: plan.previousPartValue,
-          newPartValue: plan.newPartValue,
-          ppAwarded: plan.ppAwarded,
-          benefit: plan.benefit,
-        },
-      ];
+      if (!plan.ok) throw new Error(`Validated Design upgrade cannot resolve: ${plan.errors.join(',')}`);
+      return [{ id: makeId('event', state.eventIndex), type: 'DESIGN_UPGRADED', playerId: plan.playerId, designId: plan.designId, partId: plan.partId, upgradeSpaceId: plan.upgradeSpaceId, partType: plan.partType, doubleUpgrade: plan.doubleUpgrade, previousPartValue: plan.previousPartValue, newPartValue: plan.newPartValue, ppAwarded: plan.ppAwarded, benefit: plan.benefit }];
     }
     case 'SWAP_RECYCLING_PART': {
-      const plan = getRecyclingSwapPlan(
-        state,
-        command.actorId,
-        command.outgoingPartId,
-        command.incomingPartId,
-      );
+      const plan = getRecyclingSwapPlan(state, command.actorId, command.outgoingPartId, command.incomingPartId);
       if (!plan.ok) throw new Error(`Validated Recycling swap cannot resolve: ${plan.reason}`);
-      return [
-        {
-          id: makeId('event', state.eventIndex),
-          type: 'RECYCLING_PART_SWAPPED',
-          playerId: command.actorId,
-          outgoingPartId: command.outgoingPartId,
-          incomingPartId: command.incomingPartId,
-          playerSlot: plan.playerSlot,
-          recyclingSlot: plan.recyclingSlot,
-        },
-      ];
+      return [{ id: makeId('event', state.eventIndex), type: 'RECYCLING_PART_SWAPPED', playerId: command.actorId, outgoingPartId: command.outgoingPartId, incomingPartId: command.incomingPartId, playerSlot: plan.playerSlot, recyclingSlot: plan.recyclingSlot }];
+    }
+    case 'TRAIN_DEPARTMENT': {
+      const plan = planTrainingAdvance(state, command);
+      if (!plan.ok) throw new Error(`Validated training cannot resolve: ${plan.errors.join(',')}`);
+      const events: GameEvent[] = [{ id: makeId('event', state.eventIndex), type: 'TRAINING_ADVANCED', playerId: plan.playerId, department: plan.department, fromLevel: plan.fromLevel, toLevel: plan.toLevel, source: plan.source, shiftCost: plan.shiftCost, bookCost: plan.bookCost, tieOrder: plan.tieOrder }];
+      if (plan.certificationEarned) events.push({ id: makeId('event', state.eventIndex + 1), type: 'PLAYER_CERTIFIED', playerId: plan.playerId, department: plan.department, certificationPosition: plan.certificationPosition, administrationSeatUnlocked: plan.administrationSeatUnlocked });
+      return events;
     }
     case 'FINISH_WORK': {
       const events: GameEvent[] = [];
       const player = getPlayer(state, command.actorId);
       if (player.currentDepartment === 'ASSEMBLY') {
         const refresh = planDemandRefresh(state);
-        if (refresh !== null) {
-          events.push({
-            id: makeId('event', state.eventIndex + events.length),
-            type: 'DEMANDS_REFRESHED',
-            playerId: command.actorId,
-            activeDemands: refresh.activeDemands,
-            demandDeck: refresh.demandDeck,
-            demandDiscard: refresh.demandDiscard,
-            rng: refresh.rng,
-          });
-        }
+        if (refresh !== null) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DEMANDS_REFRESHED', playerId: command.actorId, activeDemands: refresh.activeDemands, demandDeck: refresh.demandDeck, demandDiscard: refresh.demandDiscard, rng: refresh.rng });
       }
-
-      events.push({
-        id: makeId('event', state.eventIndex + events.length),
-        type: 'PLAYER_FINISHED_WORK',
-        playerId: command.actorId,
-      });
-      const isLastWorker = state.workCursor === state.workOrder.length - 1;
-      if (isLastWorker) {
-        events.push({
-          id: makeId('event', state.eventIndex + events.length),
-          type: 'DAY_ENDED',
-          nextSelectionOrder: state.workOrder,
-        });
-      }
+      events.push({ id: makeId('event', state.eventIndex + events.length), type: 'PLAYER_FINISHED_WORK', playerId: command.actorId });
+      if (state.workCursor === state.workOrder.length - 1) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DAY_ENDED', nextSelectionOrder: state.workOrder });
       return events;
     }
   }
@@ -822,20 +531,12 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
 function getAssemblyCleanupEvent(state: GameState, command: GameCommand): GameEvent | null {
   const partIds = getAssemblyTurnStartCleanupPartIds(state, command.actorId);
   if (partIds.length === 0) return null;
-  return {
-    id: makeId('event', state.eventIndex),
-    type: 'ASSEMBLY_SPACES_CLEARED',
-    playerId: command.actorId,
-    partIds,
-  };
+  return { id: makeId('event', state.eventIndex), type: 'ASSEMBLY_SPACES_CLEARED', playerId: command.actorId, partIds };
 }
 
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const errors = validateCommand(state, command);
-  if (errors.length > 0) {
-    return { status: 'REJECTED', state, errors };
-  }
-
+  if (errors.length > 0) return { status: 'REJECTED', state, errors };
   const events: GameEvent[] = [];
   let preparedState = state;
   const cleanupEvent = getAssemblyCleanupEvent(state, command);
@@ -843,13 +544,9 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
     events.push(cleanupEvent);
     preparedState = reduceEvent(preparedState, cleanupEvent);
   }
-
   const commandEvents = resolveCommand(preparedState, command);
   events.push(...commandEvents);
-  const nextState = commandEvents.reduce<GameState>(
-    (currentState, event) => reduceEvent(currentState, event),
-    preparedState,
-  );
+  const nextState = commandEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), preparedState);
   assertInvariants(nextState);
   return { status: 'ACCEPTED', state: nextState, events };
 }
