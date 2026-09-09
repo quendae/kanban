@@ -81,6 +81,11 @@ export interface ActiveFactoryGoalState {
   readonly claimedBy: readonly PlayerId[];
 }
 
+export interface PendingAwardPlaqueChoice {
+  readonly playerId: PlayerId;
+  readonly department: Department;
+}
+
 export interface BoardState {
   readonly cars: Readonly<Partial<Record<CarId, EntityLocation>>>;
   readonly parts: Readonly<Partial<Record<PartId, EntityLocation>>>;
@@ -133,6 +138,7 @@ export interface GameState {
   readonly kanbanOrderDeck: readonly KanbanOrderId[];
   readonly sandra: SandraState;
   readonly pendingRewards: readonly PendingReward[];
+  readonly pendingAwardPlaqueChoice: PendingAwardPlaqueChoice | null;
   readonly selectionOrder: readonly PlayerId[];
   readonly selectionCursor: number;
   readonly workOrder: readonly PlayerId[];
