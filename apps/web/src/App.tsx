@@ -22,6 +22,7 @@ import {
   type WorkstationId,
 } from '@kanban/rules';
 import { createDevelopmentGame } from './development-game.js';
+import { AssemblyOperatingSurface, TestingInnovationSurface } from './M3Surfaces.js';
 
 interface DepartmentLaneDefinition {
   readonly label: string;
@@ -456,6 +457,8 @@ export function App() {
           </section>
 
           <section className="operations-deck" aria-label="Factory resources">
+            <AssemblyOperatingSurface state={state} />
+            <TestingInnovationSurface state={state} />
             <DesignStudio state={state} />
             <LogisticsFloor state={state} />
             <RecyclingBay state={state} />
