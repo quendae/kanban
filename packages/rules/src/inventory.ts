@@ -1,5 +1,5 @@
 import type { ModelId, PartTypeId } from './content.js';
-import type { CarId, DesignId, PartId, PlayerId } from './ids.js';
+import type { CarId, DesignId, PartId, PlayerId, UpgradeSpaceId } from './ids.js';
 import type { EntityLocation, GameState } from './model.js';
 
 type LocationMap<T extends string> = Readonly<Partial<Record<T, EntityLocation>>>;
@@ -97,9 +97,12 @@ export function getPlayerGarageCars(state: GameState, playerId: PlayerId): CarId
 }
 
 export function getUpgradeParts(state: GameState, model: ModelId): PartId[] {
-  return getOrderedIds(state.board.parts, (location) =>
-    location.kind === 'BOARD' && location.area === `innovation:${model}`,
-  );
+  return getOrderedIds(state.board.parts, (location) => {
+    if (location.kind !== 'BOARD') return false;
+    if (location.area === `innovation:${model}`) return true;
+    const definition = state.content.upgradeSpaces[location.area as UpgradeSpaceId];
+    return definition?.model === model;
+  });
 }
 
 export function getActiveDemands(state: GameState) {
