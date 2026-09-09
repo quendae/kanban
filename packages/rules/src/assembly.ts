@@ -188,6 +188,10 @@ function getSupplyCar(state: GameState, model: ModelId): CarId | null {
   return candidates[0] ?? null;
 }
 
+function withExitPP(move: Omit<CarMove, 'exitPP'>, exitPP: 1 | 2 | undefined): CarMove {
+  return exitPP === undefined ? move : { ...move, exitPP };
+}
+
 function testTrackExitMoves(
   state: GameState,
   carId: CarId,
@@ -197,18 +201,25 @@ function testTrackExitMoves(
   const capacity = state.content.testingRules.testTrackCapacity;
   const existing = getTestTrackCars(state);
   if (capacity <= 0) {
-    return [{ carId, from, to: { kind: 'SUPPLY' }, reason: 'TEST_TRACK_OVERFLOW', exitPP }];
+    return [
+      withExitPP(
+        { carId, from, to: { kind: 'SUPPLY' }, reason: 'TEST_TRACK_OVERFLOW' },
+        exitPP,
+      ),
+    ];
   }
 
   if (existing.length < capacity) {
     return [
-      {
-        carId,
-        from,
-        to: { kind: 'BOARD', area: 'test-track', slot: existing.length },
-        reason: 'EXIT_TO_TEST_TRACK',
+      withExitPP(
+        {
+          carId,
+          from,
+          to: { kind: 'BOARD', area: 'test-track', slot: existing.length },
+          reason: 'EXIT_TO_TEST_TRACK',
+        },
         exitPP,
-      },
+      ),
     ];
   }
 
@@ -237,13 +248,17 @@ function testTrackExitMoves(
     });
   });
 
-  moves.push({
-    carId,
-    from,
-    to: { kind: 'BOARD', area: 'test-track', slot: capacity - 1 },
-    reason: 'EXIT_TO_TEST_TRACK',
-    exitPP,
-  });
+  moves.push(
+    withExitPP(
+      {
+        carId,
+        from,
+        to: { kind: 'BOARD', area: 'test-track', slot: capacity - 1 },
+        reason: 'EXIT_TO_TEST_TRACK',
+      },
+      exitPP,
+    ),
+  );
   return moves;
 }
 
@@ -254,7 +269,10 @@ export function planAssemblyPush(
 ): AssemblyPushPlan {
   const graph = state.content.assemblyGraph.models[model];
   if (!graph) return { ok: false, reason: 'GRAPH_MISSING' };
-  if (!graph.nodes[graph.startNodeId]) return { ok: false, reason: 'START_NODE_MISSING' };
+  const modelGraph = graph;
+  if (!modelGraph.nodes[modelGraph.startNodeId]) {
+    return { ok: false, reason: 'START_NODE_MISSING' };
+  }
 
   const moves: CarMove[] = [];
   let ppAwarded = 0;
@@ -263,7 +281,7 @@ export function planAssemblyPush(
 
   function moveCarFromNode(carId: CarId, nodeId: AssemblyNodeId): AssemblyPushPlan | null {
     if (visiting.has(nodeId)) return { ok: false, reason: 'CYCLE_DETECTED' };
-    const node = graph.nodes[nodeId];
+    const node = modelGraph.nodes[nodeId];
     if (!node) return { ok: false, reason: 'NODE_MISSING' };
     const from = state.board.cars[carId];
     if (!from) return { ok: false, reason: 'CAR_NOT_AVAILABLE' };
@@ -285,7 +303,7 @@ export function planAssemblyPush(
     }
     if (!edge) return { ok: false, reason: 'DEAD_END' };
 
-    const target = graph.nodes[edge.to];
+    const target = modelGraph.nodes[edge.to];
     if (!target) return { ok: false, reason: 'NODE_MISSING' };
     if (target.kind === 'EXIT') {
       moves.push(...testTrackExitMoves(state, carId, from, edge.exitPP));
@@ -310,7 +328,7 @@ export function planAssemblyPush(
     return null;
   }
 
-  const startCar = getCarAtNode(state, graph.startNodeId);
+  const startCar = getCarAtNode(state, modelGraph.startNodeId);
   if (startCar === null) {
     const supplyCar = getSupplyCar(state, model);
     if (supplyCar === null) return { ok: false, reason: 'CAR_NOT_AVAILABLE' };
@@ -323,7 +341,7 @@ export function planAssemblyPush(
         {
           carId: supplyCar,
           from,
-          to: { kind: 'BOARD', area: nodeArea(graph.startNodeId), slot: 0 },
+          to: { kind: 'BOARD', area: nodeArea(modelGraph.startNodeId), slot: 0 },
           reason: 'SUPPLY_REFILL',
         },
       ],
@@ -331,7 +349,7 @@ export function planAssemblyPush(
     };
   }
 
-  const failure = moveCarFromNode(startCar, graph.startNodeId);
+  const failure = moveCarFromNode(startCar, modelGraph.startNodeId);
   if (failure !== null) return failure;
   if (choiceIndex !== pathChoices.length) return { ok: false, reason: 'INVALID_PATH_CHOICE' };
 
@@ -342,7 +360,7 @@ export function planAssemblyPush(
       moves.push({
         carId: supplyCar,
         from,
-        to: { kind: 'BOARD', area: nodeArea(graph.startNodeId), slot: 0 },
+        to: { kind: 'BOARD', area: nodeArea(modelGraph.startNodeId), slot: 0 },
         reason: 'SUPPLY_REFILL',
       });
     }
