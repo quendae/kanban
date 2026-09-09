@@ -232,6 +232,47 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         pendingAwardPlaqueChoice: null,
         eventIndex: state.eventIndex + 1,
       };
+    case 'FACTORY_GOAL_ACHIEVED':
+      return {
+        ...state,
+        players: state.players.map((player) => {
+          if (player.id !== event.playerId) return player;
+          if (event.seatOutcome === 'FLIP_OWN_SEAT') {
+            return {
+              ...player,
+              conferenceSeatsFaceUp: player.conferenceSeatsFaceUp + 1,
+              conferenceSeatsFaceDown: Math.max(0, player.conferenceSeatsFaceDown - 1),
+            };
+          }
+          return { ...player, genericRedSeats: player.genericRedSeats + 1 };
+        }),
+        board: {
+          ...state.board,
+          factoryGoals: state.board.factoryGoals.map((goal) =>
+            goal.goalId === event.goalId
+              ? {
+                  ...goal,
+                  seatsRemaining: Math.max(0, goal.seatsRemaining - 1),
+                  claimedBy: goal.claimedBy.includes(event.playerId)
+                    ? goal.claimedBy
+                    : [...goal.claimedBy, event.playerId],
+                }
+              : goal,
+          ),
+        },
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'RED_SEAT_CONVERTED':
+      return {
+        ...state,
+        players: state.players.map((player) => player.id === event.playerId ? {
+          ...player,
+          genericRedSeats: Math.max(0, player.genericRedSeats - 1),
+          conferenceSeatsFaceUp: player.conferenceSeatsFaceUp + 1,
+          conferenceSeatsFaceDown: Math.max(0, player.conferenceSeatsFaceDown - 1),
+        } : player),
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return { ...state, players: state.players.map((player) => player.id === event.playerId ? { ...player, done: true } : player), workCursor: nextCursor, activeActorId: state.workOrder[nextCursor] ?? null, eventIndex: state.eventIndex + 1 };
