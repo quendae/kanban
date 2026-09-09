@@ -22,7 +22,11 @@ import type {
   UpgradeSpaceId,
 } from './ids.js';
 import type { WarehousePartMove } from './logistics.js';
-import type { ActiveDemandState, PendingRewardType } from './model.js';
+import type {
+  ActiveDemandState,
+  MicromanageDepartment,
+  PendingRewardType,
+} from './model.js';
 import type { RngState } from './rng.js';
 import type {
   ClaimCarPlacement,
@@ -218,6 +222,12 @@ export type GameEvent =
       readonly id: EventId;
       readonly type: 'RED_SEAT_CONVERTED';
       readonly playerId: PlayerId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'MICROMANAGE_STARTED';
+      readonly playerId: PlayerId;
+      readonly department: MicromanageDepartment;
     }
   | {
       readonly id: EventId;
