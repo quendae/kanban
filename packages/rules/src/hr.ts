@@ -1,3 +1,4 @@
+import { getTrainableDepartments } from './administration.js';
 import type { GameCommand } from './commands.js';
 import type { Department } from './enums.js';
 import type { RuleErrorCode } from './errors.js';
@@ -80,7 +81,9 @@ export function planTrainingAdvance(
   if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
   if (!player) return { ok: false, errors: [...errors, 'WRONG_ACTOR'] };
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
-  if (player.currentDepartment !== command.department) errors.push('TRAINING_WRONG_DEPARTMENT');
+  if (!getTrainableDepartments(state, command.actorId).includes(command.department)) {
+    errors.push('TRAINING_WRONG_DEPARTMENT');
+  }
 
   const fromLevel = player.training[command.department];
   const expertLevel = state.content.trainingRules.expertLevel;
