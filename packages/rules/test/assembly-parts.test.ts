@@ -177,6 +177,62 @@ describe('Assembly — turn-start cleanup and Provide Needed Part', () => {
     }
   });
 
+  it('treats a real Testing design upgrade as the Assembly upgraded-part requirement', () => {
+    const base = workingAssemblyState();
+    const state: GameState = {
+      ...base,
+      content: {
+        ...base.content,
+        designs: {
+          'design:0': {
+            id: 'design:0',
+            model: 'model:0',
+            partType: 'part-type:2',
+            oldestBonus: null,
+          },
+        },
+        upgradeSpaces: {
+          'upgrade-space:0': {
+            id: 'upgrade-space:0',
+            model: 'model:0',
+            partType: 'part-type:2',
+            benefit: { kind: 'NONE' },
+          },
+        },
+      },
+      board: {
+        ...base.board,
+        parts: {
+          ...base.board.parts,
+          'part:4': { kind: 'BOARD', area: 'upgrade-space:0', slot: 0 },
+        },
+        designs: {
+          'design:0': {
+            kind: 'PLAYER',
+            playerId: 'player:0',
+            area: 'blueprints',
+            slot: 0,
+          },
+        },
+        designUpgrades: {
+          'design:0': { partType: 'part-type:2', doubleUpgrade: false },
+        },
+      },
+    };
+
+    expect(getNeededPartTypes(state, 'model:0')).toEqual(['part-type:2']);
+    const ordinaryFirst = applyCommand(state, {
+      type: 'PROVIDE_ASSEMBLY_PART',
+      actorId: 'player:0',
+      model: 'model:0',
+      partId: 'part:0',
+    });
+    expect(ordinaryFirst.status).toBe('REJECTED');
+    if (ordinaryFirst.status === 'REJECTED') {
+      expect(ordinaryFirst.errors).toContain('ASSEMBLY_UPGRADED_PARTS_REQUIRED_FIRST');
+    }
+  });
+
   it('clears every full Assembly model to supply before resolving the first Assembly Shift action', () => {
     const state = workingAssemblyState({ completeAtStart: true });
     const result = applyCommand(state, {
