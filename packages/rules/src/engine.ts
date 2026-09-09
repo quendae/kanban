@@ -41,6 +41,7 @@ import {
 import type { GameState, PlayerState } from './model.js';
 import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
+import { planCarClaim } from './testing.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
 export type CommandResult =
@@ -284,6 +285,14 @@ function provideAssemblyPartErrors(
   return errors;
 }
 
+function claimCarsErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'CLAIM_CARS' }>,
+): readonly RuleErrorCode[] {
+  const plan = planCarClaim(state, command);
+  return plan.ok ? [] : plan.errors;
+}
+
 function recyclingSwapErrors(
   state: GameState,
   command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
@@ -489,6 +498,8 @@ function validateCommand(
       return takePartsVoucherErrors(state, command.actorId);
     case 'PROVIDE_ASSEMBLY_PART':
       return provideAssemblyPartErrors(state, command);
+    case 'CLAIM_CARS':
+      return claimCarsErrors(state, command);
     case 'SWAP_RECYCLING_PART':
       return recyclingSwapErrors(state, command);
     case 'FINISH_WORK':
@@ -650,6 +661,25 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         }
       }
       return events;
+    }
+    case 'CLAIM_CARS': {
+      const plan = planCarClaim(state, command);
+      if (!plan.ok) {
+        throw new Error(`Validated car claim cannot resolve: ${plan.errors.join(',')}`);
+      }
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'CARS_CLAIMED',
+          playerId: command.actorId,
+          shiftCost: plan.shiftCost,
+          placements: plan.placements,
+          trackMoves: plan.trackMoves,
+          designMoves: plan.designMoves,
+          garageBenefits: plan.garageBenefits,
+          paceCarPosition: plan.paceCarPosition,
+        },
+      ];
     }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
