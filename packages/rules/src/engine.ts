@@ -1,4 +1,9 @@
 import {
+  getEffectiveWorkDepartment,
+  getTrainableDepartments,
+  MICROMANAGE_DEPARTMENTS,
+} from './administration.js';
+import {
   getAssemblyDestinationSlot,
   getAssemblyPathChoiceSequences,
   getAssemblyTurnStartCleanupPartIds,
@@ -128,7 +133,7 @@ function startDesignSelectionErrors(
   playerId: PlayerId,
 ): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
-  if (getPlayer(state, playerId).currentDepartment !== 'DESIGN') errors.push('NOT_IN_DESIGN');
+  if (getEffectiveWorkDepartment(state, playerId) !== 'DESIGN') errors.push('NOT_IN_DESIGN');
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
   return errors;
 }
@@ -172,8 +177,7 @@ function collectPartsErrors(
   command: Extract<GameCommand, { readonly type: 'COLLECT_PARTS' }>,
 ): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
-  const player = getPlayer(state, command.actorId);
-  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
 
   if (!Number.isInteger(command.quantity) || command.quantity < 1) {
@@ -197,7 +201,7 @@ function issueKanbanOrderErrors(
 ): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
   const player = getPlayer(state, command.actorId);
-  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
   if (!player.kanbanOrders.includes(command.orderId)) errors.push('KANBAN_ORDER_NOT_IN_HAND');
   if (player.kanbanOrderIssuedToday) errors.push('KANBAN_ORDER_ALREADY_ISSUED');
@@ -212,7 +216,7 @@ function takePartsVoucherErrors(
 ): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   const player = getPlayer(state, playerId);
-  if (player.currentDepartment !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
+  if (getEffectiveWorkDepartment(state, playerId) !== 'LOGISTICS') errors.push('NOT_IN_LOGISTICS');
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
   if (!player.certifications.includes('LOGISTICS')) {
     errors.push('LOGISTICS_VOUCHER_REQUIRES_CERTIFICATION');
@@ -228,8 +232,7 @@ function provideAssemblyPartErrors(
   command: Extract<GameCommand, { readonly type: 'PROVIDE_ASSEMBLY_PART' }>,
 ): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
-  const player = getPlayer(state, command.actorId);
-  if (player.currentDepartment !== 'ASSEMBLY') errors.push('NOT_IN_ASSEMBLY');
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'ASSEMBLY') errors.push('NOT_IN_ASSEMBLY');
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
 
   const preparedState = previewAssemblyTurnStartCleanup(state, command.actorId);
@@ -331,6 +334,19 @@ function redSeatConversionErrors(state: GameState, playerId: PlayerId): readonly
   return errors;
 }
 
+function micromanageErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'START_MICROMANAGE' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const player = state.players.find((candidate) => candidate.id === command.actorId);
+  if (!player) return [...errors, 'WRONG_ACTOR'];
+  if (player.currentDepartment !== 'ADMINISTRATION') errors.push('NOT_IN_ADMINISTRATION');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  if (player.micromanagedDepartment !== null) errors.push('MICROMANAGE_ALREADY_SELECTED');
+  return errors;
+}
+
 function recyclingSwapErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
   const plan = getRecyclingSwapPlan(state, command.actorId, command.outgoingPartId, command.incomingPartId);
@@ -359,8 +375,7 @@ function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCo
 }
 
 function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCommand[] {
-  const player = state.players.find((candidate) => candidate.id === playerId);
-  if (state.phase !== 'WORK' || state.activeActorId !== playerId || player?.currentDepartment !== 'ASSEMBLY' || state.activeDepartmentAction !== null) return [];
+  if (state.phase !== 'WORK' || state.activeActorId !== playerId || getEffectiveWorkDepartment(state, playerId) !== 'ASSEMBLY' || state.activeDepartmentAction !== null) return [];
   const preparedState = previewAssemblyTurnStartCleanup(state, playerId);
   const commands: GameCommand[] = [];
   for (const model of state.content.models) {
@@ -378,8 +393,7 @@ function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCom
 }
 
 function getLegalTestingCommands(state: GameState, playerId: PlayerId): GameCommand[] {
-  const player = state.players.find((candidate) => candidate.id === playerId);
-  if (state.phase !== 'WORK' || state.activeActorId !== playerId || player?.currentDepartment !== 'TESTING_INNOVATION' || state.activeDepartmentAction !== null) return [];
+  if (state.phase !== 'WORK' || state.activeActorId !== playerId || getEffectiveWorkDepartment(state, playerId) !== 'TESTING_INNOVATION' || state.activeDepartmentAction !== null) return [];
   const commands: GameCommand[] = [];
   const upgradeSpaceIds = Object.keys(state.content.upgradeSpaces) as UpgradeSpaceId[];
   for (const designId of getPlayerDesigns(state, playerId)) {
@@ -405,6 +419,24 @@ function getRedSeatConversionCommands(state: GameState, playerId: PlayerId): Gam
   return redSeatConversionErrors(state, playerId).length === 0
     ? [{ type: 'CONVERT_RED_SEAT', actorId: playerId }]
     : [];
+}
+
+function getMicromanageCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (
+    state.phase !== 'WORK' ||
+    state.activeActorId !== playerId ||
+    player?.currentDepartment !== 'ADMINISTRATION' ||
+    player.micromanagedDepartment !== null ||
+    state.activeDepartmentAction !== null
+  ) {
+    return [];
+  }
+  return MICROMANAGE_DEPARTMENTS.map((department) => ({
+    type: 'START_MICROMANAGE' as const,
+    actorId: playerId,
+    department,
+  }));
 }
 
 export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
@@ -444,20 +476,23 @@ export function getLegalCommands(state: GameState, playerId: PlayerId): readonly
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
       ...globalCommands,
+      ...getMicromanageCommands(state, playerId),
       ...getLegalAssemblyCommands(state, playerId),
       ...getLegalTestingCommands(state, playerId),
     ];
     if (startDesignSelectionErrors(state, playerId).length === 0) commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
 
-    const player = getPlayer(state, playerId);
-    if (player.currentDepartment !== null && state.activeDepartmentAction === null) {
-      for (const source of ['SHIFT', 'BOOK'] as const) {
-        const command: GameCommand = { type: 'TRAIN_DEPARTMENT', actorId: playerId, department: player.currentDepartment, source };
-        if (trainingErrors(state, command).length === 0) commands.push(command);
+    if (state.activeDepartmentAction === null) {
+      for (const department of getTrainableDepartments(state, playerId)) {
+        for (const source of ['SHIFT', 'BOOK'] as const) {
+          const command: GameCommand = { type: 'TRAIN_DEPARTMENT', actorId: playerId, department, source };
+          if (trainingErrors(state, command).length === 0) commands.push(command);
+        }
       }
     }
 
-    if (player.currentDepartment === 'LOGISTICS' && state.activeDepartmentAction === null) {
+    const player = getPlayer(state, playerId);
+    if (getEffectiveWorkDepartment(state, playerId) === 'LOGISTICS' && state.activeDepartmentAction === null) {
       if (hasAvailableShift(state, playerId)) {
         for (const partType of state.content.partTypes) {
           const maximum = getMaximumCollectableQuantity(state, playerId, partType);
@@ -507,6 +542,7 @@ function validateCommand(state: GameState, command: GameCommand): readonly RuleE
     case 'TRAIN_DEPARTMENT': return trainingErrors(state, command);
     case 'CHOOSE_AWARD_PLAQUE': return awardPlaqueChoiceErrors(state, command);
     case 'CONVERT_RED_SEAT': return redSeatConversionErrors(state, command.actorId);
+    case 'START_MICROMANAGE': return micromanageErrors(state, command);
     case 'FINISH_WORK': return finishWorkErrors(state, command.actorId);
   }
 }
@@ -602,10 +638,11 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
     }
     case 'CONVERT_RED_SEAT':
       return [{ id: makeId('event', state.eventIndex), type: 'RED_SEAT_CONVERTED', playerId: command.actorId }];
+    case 'START_MICROMANAGE':
+      return [{ id: makeId('event', state.eventIndex), type: 'MICROMANAGE_STARTED', playerId: command.actorId, department: command.department }];
     case 'FINISH_WORK': {
       const events: GameEvent[] = [];
-      const player = getPlayer(state, command.actorId);
-      if (player.currentDepartment === 'ASSEMBLY') {
+      if (getEffectiveWorkDepartment(state, command.actorId) === 'ASSEMBLY') {
         const refresh = planDemandRefresh(state);
         if (refresh !== null) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DEMANDS_REFRESHED', playerId: command.actorId, activeDemands: refresh.activeDemands, demandDeck: refresh.demandDeck, demandDiscard: refresh.demandDiscard, rng: refresh.rng });
       }
