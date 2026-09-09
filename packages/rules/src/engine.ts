@@ -25,6 +25,7 @@ import {
 } from './design.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
+import { planFactoryGoalAwards } from './factory-goals.js';
 import { planTrainingAdvance } from './hr.js';
 import { makeId, type PlayerId, type UpgradeSpaceId } from './ids.js';
 import { assertInvariants } from './invariants.js';
@@ -316,6 +317,20 @@ function awardPlaqueChoiceErrors(
   return errors;
 }
 
+function redSeatConversionErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player) return ['WRONG_ACTOR'];
+
+  const errors: RuleErrorCode[] = [];
+  if (state.phase === 'MEETING') errors.push('RED_SEAT_CONVERSION_DURING_MEETING');
+  if (state.phase === 'SETUP' || state.phase === 'FINAL_SCORE' || state.phase === 'GAME_OVER') {
+    errors.push('WRONG_PHASE');
+  }
+  if (player.genericRedSeats < 1) errors.push('RED_SEAT_REQUIRED');
+  if (player.conferenceSeatsFaceDown < 1) errors.push('FACE_DOWN_SEAT_REQUIRED');
+  return errors;
+}
+
 function recyclingSwapErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
   const plan = getRecyclingSwapPlan(state, command.actorId, command.outgoingPartId, command.incomingPartId);
@@ -386,6 +401,12 @@ function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleEr
   return errors;
 }
 
+function getRedSeatConversionCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  return redSeatConversionErrors(state, playerId).length === 0
+    ? [{ type: 'CONVERT_RED_SEAT', actorId: playerId }]
+    : [];
+}
+
 export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
   const pendingPlaque = state.pendingAwardPlaqueChoice;
   if (pendingPlaque !== null) {
@@ -400,23 +421,29 @@ export function getLegalCommands(state: GameState, playerId: PlayerId): readonly
       }));
   }
 
+  const globalCommands = getRedSeatConversionCommands(state, playerId);
+
   if (state.phase === 'SETUP') {
     const player = state.players.find((candidate) => candidate.id === playerId);
     if (!player || player.kind !== 'HUMAN' || player.id !== 'player:0') return [];
-    return [{ type: 'START_GAME', actorId: playerId }];
+    return [{ type: 'START_GAME', actorId: playerId }, ...globalCommands];
   }
   if (state.phase === 'SELECT_DEPARTMENT' && state.activeActorId === playerId) {
-    return WORKSTATIONS.filter((station) => selectionErrors(state, playerId, station.id).length === 0).map((station) => ({ type: 'SELECT_WORKSTATION' as const, actorId: playerId, workstationId: station.id }));
+    return [
+      ...WORKSTATIONS.filter((station) => selectionErrors(state, playerId, station.id).length === 0).map((station) => ({ type: 'SELECT_WORKSTATION' as const, actorId: playerId, workstationId: station.id })),
+      ...globalCommands,
+    ];
   }
   if (state.phase === 'WORK' && state.activeActorId === playerId) {
     const recyclingCommands = getLegalRecyclingCommands(state, playerId);
     if (state.activeDepartmentAction?.kind === 'DESIGN_SELECTION' && state.activeDepartmentAction.playerId === playerId) {
       const takeCommands = getSelectableDesignIds(state, playerId).filter((designId) => takeDesignErrors(state, playerId, designId).length === 0).map((designId) => ({ type: 'TAKE_DESIGN' as const, actorId: playerId, designId }));
-      return [...takeCommands, ...recyclingCommands, { type: 'END_DESIGN_SELECTION' as const, actorId: playerId }];
+      return [...takeCommands, ...recyclingCommands, ...globalCommands, { type: 'END_DESIGN_SELECTION' as const, actorId: playerId }];
     }
     const commands: GameCommand[] = [
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
+      ...globalCommands,
       ...getLegalAssemblyCommands(state, playerId),
       ...getLegalTestingCommands(state, playerId),
     ];
@@ -451,7 +478,7 @@ export function getLegalCommands(state: GameState, playerId: PlayerId): readonly
     }
     return commands;
   }
-  return [];
+  return globalCommands;
 }
 
 function validateCommand(state: GameState, command: GameCommand): readonly RuleErrorCode[] {
@@ -479,6 +506,7 @@ function validateCommand(state: GameState, command: GameCommand): readonly RuleE
     case 'SWAP_RECYCLING_PART': return recyclingSwapErrors(state, command);
     case 'TRAIN_DEPARTMENT': return trainingErrors(state, command);
     case 'CHOOSE_AWARD_PLAQUE': return awardPlaqueChoiceErrors(state, command);
+    case 'CONVERT_RED_SEAT': return redSeatConversionErrors(state, command.actorId);
     case 'FINISH_WORK': return finishWorkErrors(state, command.actorId);
   }
 }
@@ -572,6 +600,8 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         reward: definition.reward,
       }];
     }
+    case 'CONVERT_RED_SEAT':
+      return [{ id: makeId('event', state.eventIndex), type: 'RED_SEAT_CONVERTED', playerId: command.actorId }];
     case 'FINISH_WORK': {
       const events: GameEvent[] = [];
       const player = getPlayer(state, command.actorId);
@@ -592,6 +622,20 @@ function getAssemblyCleanupEvent(state: GameState, command: GameCommand): GameEv
   return { id: makeId('event', state.eventIndex), type: 'ASSEMBLY_SPACES_CLEARED', playerId: command.actorId, partIds };
 }
 
+function getFactoryGoalEvents(before: GameState, after: GameState): readonly GameEvent[] {
+  return planFactoryGoalAwards(before, after).map((award, index) => ({
+    id: makeId('event', after.eventIndex + index),
+    type: 'FACTORY_GOAL_ACHIEVED' as const,
+    playerId: award.playerId,
+    goalId: award.goalId,
+    category: award.category,
+    beforeMetric: award.beforeMetric,
+    afterMetric: award.afterMetric,
+    threshold: award.threshold,
+    seatOutcome: award.seatOutcome,
+  }));
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const errors = validateCommand(state, command);
   if (errors.length > 0) return { status: 'REJECTED', state, errors };
@@ -604,7 +648,10 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
   }
   const commandEvents = resolveCommand(preparedState, command);
   events.push(...commandEvents);
-  const nextState = commandEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), preparedState);
+  const commandState = commandEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), preparedState);
+  const factoryGoalEvents = getFactoryGoalEvents(state, commandState);
+  events.push(...factoryGoalEvents);
+  const nextState = factoryGoalEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), commandState);
   assertInvariants(nextState);
   return { status: 'ACCEPTED', state: nextState, events };
 }
