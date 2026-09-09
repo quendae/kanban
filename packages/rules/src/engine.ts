@@ -41,7 +41,7 @@ import {
 import type { GameState, PlayerState } from './model.js';
 import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
-import { planCarClaim } from './testing.js';
+import { getPaceCarMeetingTrigger, planCarClaim } from './testing.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
 export type CommandResult =
@@ -667,7 +667,7 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       if (!plan.ok) {
         throw new Error(`Validated car claim cannot resolve: ${plan.errors.join(',')}`);
       }
-      return [
+      const events: GameEvent[] = [
         {
           id: makeId('event', state.eventIndex),
           type: 'CARS_CLAIMED',
@@ -680,6 +680,17 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           paceCarPosition: plan.paceCarPosition,
         },
       ];
+      const meetingTrigger = getPaceCarMeetingTrigger(state, plan.paceCarPosition);
+      if (meetingTrigger !== null) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
+          type: 'MEETING_SCHEDULED',
+          previousPaceCarPosition: meetingTrigger.previousPaceCarPosition,
+          newPaceCarPosition: meetingTrigger.newPaceCarPosition,
+          threshold: meetingTrigger.threshold,
+        });
+      }
+      return events;
     }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
