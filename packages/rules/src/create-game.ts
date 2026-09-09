@@ -3,7 +3,7 @@ import {
   BASE_PART_CAPACITY,
   RULESET_ID,
 } from './constants.js';
-import { EMPTY_GAME_CONTENT } from './content.js';
+import { EMPTY_GAME_CONTENT, PART_TYPE_IDS } from './content.js';
 import type { PlayerCount } from './enums.js';
 import { makeId } from './ids.js';
 import type { BoardState, GameState, PlayerState } from './model.js';
@@ -31,6 +31,8 @@ function createPlayer(index: number): PlayerState {
     genericRedSeats: 0,
     partCapacity: BASE_PART_CAPACITY,
     designCapacity: BASE_DESIGN_CAPACITY,
+    garageCapacity: 4,
+    doubleUpgradeUsed: false,
     certifications: [],
     kanbanOrders: [],
     kanbanOrderIssuedToday: false,
@@ -47,6 +49,12 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     cars: {},
     parts: {},
     designs: {},
+    partValues: Object.fromEntries(PART_TYPE_IDS.map((partType) => [partType, 0])) as BoardState['partValues'],
+    activeDemands: [],
+    demandDeck: [],
+    paceCarPosition: 0,
+    nextMeetingThreshold: EMPTY_GAME_CONTENT.testingRules.meetingThresholds[0] ?? 4,
+    doubleUpgradedPartTypes: {},
   };
   const players = Array.from({ length: input.playerCount }, (_, index) => createPlayer(index));
   const selectionOrder = players.map((player) => player.id);

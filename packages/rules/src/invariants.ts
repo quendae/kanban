@@ -1,5 +1,5 @@
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
-import { getPlayerDesigns, getPlayerParts } from './inventory.js';
+import { getPlayerDesigns, getPlayerParts, getTestTrackCars } from './inventory.js';
 import type { GameState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
@@ -18,7 +18,11 @@ export type InvariantCode =
   | 'WORKSTATION_DEPARTMENT_MISMATCH'
   | 'INVALID_BASE_SHIFTS'
   | 'PART_CAPACITY_EXCEEDED'
-  | 'DESIGN_CAPACITY_EXCEEDED';
+  | 'DESIGN_CAPACITY_EXCEEDED'
+  | 'TEST_TRACK_CAPACITY_EXCEEDED'
+  | 'DUPLICATE_GARAGE_SLOT'
+  | 'INVALID_PART_VALUE'
+  | 'INVALID_ASSEMBLY_LOCATION';
 
 export interface InvariantViolation {
   readonly code: InvariantCode;
@@ -45,6 +49,12 @@ function isClockValue(value: number): boolean {
 
 function isCursorInBounds(value: number, length: number): boolean {
   return Number.isInteger(value) && value >= 0 && value <= length;
+}
+
+function hasAssemblyNode(state: GameState, nodeId: string): boolean {
+  return Object.values(state.content.assemblyGraph.models).some(
+    (model) => model !== undefined && model.nodes[nodeId as keyof typeof model.nodes] !== undefined,
+  );
 }
 
 export function getInvariantViolations(
@@ -170,6 +180,53 @@ export function getInvariantViolations(
       code: 'INVALID_WORK_ORDER',
       message: 'Work order must contain valid unique player IDs and all players during WORK',
     });
+  }
+
+  if (getTestTrackCars(state).length > state.content.testingRules.testTrackCapacity) {
+    violations.push({
+      code: 'TEST_TRACK_CAPACITY_EXCEEDED',
+      message: `Test Track exceeds capacity ${state.content.testingRules.testTrackCapacity}`,
+    });
+  }
+
+  const garageSlots = new Set<string>();
+  for (const location of Object.values(state.board.cars)) {
+    if (
+      location?.kind === 'PLAYER' &&
+      location.area === 'garage'
+    ) {
+      const key = `${location.playerId}:${location.slot}`;
+      if (garageSlots.has(key)) {
+        violations.push({
+          code: 'DUPLICATE_GARAGE_SLOT',
+          message: `Garage slot ${key} contains more than one car`,
+        });
+        break;
+      }
+      garageSlots.add(key);
+    }
+  }
+
+  for (const partType of state.content.partTypes) {
+    const value = state.board.partValues[partType];
+    if (!Number.isInteger(value) || value < 0 || value > state.content.testingRules.maxPartValue) {
+      violations.push({
+        code: 'INVALID_PART_VALUE',
+        message: `${partType} has invalid global value ${value}`,
+      });
+    }
+  }
+
+  for (const location of Object.values(state.board.cars)) {
+    if (location?.kind !== 'BOARD' || !location.area.startsWith('assembly-node:')) continue;
+    const nodeId = location.area.slice('assembly-node:'.length);
+    if (!hasAssemblyNode(state, nodeId)) {
+      violations.push({
+        code: 'INVALID_ASSEMBLY_LOCATION',
+        message: `Car references unknown Assembly node ${nodeId}`,
+      });
+      break;
+    }
   }
 
   if (!isClockValue(state.week)) {

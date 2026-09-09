@@ -1,5 +1,5 @@
-import type { PartTypeId } from './content.js';
-import type { DesignId, PartId, PlayerId } from './ids.js';
+import type { ModelId, PartTypeId } from './content.js';
+import type { CarId, DesignId, PartId, PlayerId } from './ids.js';
 import type { EntityLocation, GameState } from './model.js';
 
 type LocationMap<T extends string> = Readonly<Partial<Record<T, EntityLocation>>>;
@@ -63,4 +63,45 @@ export function getRecyclingParts(state: GameState): PartId[] {
   return getOrderedIds(state.board.parts, (location) =>
     location.kind === 'BOARD' && location.area === 'recycling',
   );
+}
+
+export function getAssemblyCars(state: GameState, model: ModelId): CarId[] {
+  const graph = state.content.assemblyGraph.models[model];
+  const graphNodes = new Set(Object.keys(graph?.nodes ?? {}));
+  return getOrderedIds(state.board.cars, (location) => {
+    if (location.kind !== 'BOARD') return false;
+    if (location.area === `assembly:${model}`) return true;
+    if (!location.area.startsWith('assembly-node:')) return false;
+    return graphNodes.has(location.area.slice('assembly-node:'.length));
+  });
+}
+
+export function getAssemblyParts(state: GameState, model: ModelId): PartId[] {
+  return getOrderedIds(state.board.parts, (location) =>
+    location.kind === 'BOARD' && location.area === `assembly:${model}`,
+  );
+}
+
+export function getTestTrackCars(state: GameState): CarId[] {
+  return getOrderedIds(state.board.cars, (location) =>
+    location.kind === 'BOARD' && location.area === 'test-track',
+  );
+}
+
+export function getPlayerGarageCars(state: GameState, playerId: PlayerId): CarId[] {
+  return getOrderedIds(state.board.cars, (location) =>
+    location.kind === 'PLAYER' &&
+    location.playerId === playerId &&
+    location.area === 'garage',
+  );
+}
+
+export function getUpgradeParts(state: GameState, model: ModelId): PartId[] {
+  return getOrderedIds(state.board.parts, (location) =>
+    location.kind === 'BOARD' && location.area === `innovation:${model}`,
+  );
+}
+
+export function getActiveDemands(state: GameState) {
+  return state.board.activeDemands.map((demand) => ({ ...demand }));
 }

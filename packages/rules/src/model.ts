@@ -1,6 +1,13 @@
-import type { GameContent } from './content.js';
+import type { GameContent, PartTypeId } from './content.js';
 import type { Department, GamePhase, PlayerCount, RulesetId } from './enums.js';
-import type { CarId, DesignId, KanbanOrderId, PartId, PlayerId } from './ids.js';
+import type {
+  CarId,
+  DemandId,
+  DesignId,
+  KanbanOrderId,
+  PartId,
+  PlayerId,
+} from './ids.js';
 import type { RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -22,6 +29,8 @@ export interface PlayerState {
   readonly genericRedSeats: number;
   readonly partCapacity: number;
   readonly designCapacity: number;
+  readonly garageCapacity: number;
+  readonly doubleUpgradeUsed: boolean;
   readonly certifications: readonly Department[];
   readonly kanbanOrders: readonly KanbanOrderId[];
   readonly kanbanOrderIssuedToday: boolean;
@@ -47,10 +56,21 @@ export type EntityLocation =
       readonly slot: number;
     };
 
+export interface ActiveDemandState {
+  readonly demandId: DemandId;
+  readonly redSeatsRemaining: number;
+}
+
 export interface BoardState {
   readonly cars: Readonly<Partial<Record<CarId, EntityLocation>>>;
   readonly parts: Readonly<Partial<Record<PartId, EntityLocation>>>;
   readonly designs: Readonly<Partial<Record<DesignId, EntityLocation>>>;
+  readonly partValues: Readonly<Record<PartTypeId, number>>;
+  readonly activeDemands: readonly ActiveDemandState[];
+  readonly demandDeck: readonly DemandId[];
+  readonly paceCarPosition: number;
+  readonly nextMeetingThreshold: number;
+  readonly doubleUpgradedPartTypes: Readonly<Partial<Record<PartTypeId, PlayerId>>>;
 }
 
 export type PendingRewardType = 'BANKED_SHIFT' | 'BOOK' | 'VOUCHER';
