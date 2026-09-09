@@ -6,6 +6,7 @@ import type {
   KanbanOrderId,
   PartId,
   PlayerId,
+  UpgradeSpaceId,
 } from './ids.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -66,6 +67,14 @@ export type GameCommand =
       readonly type: 'CLAIM_CARS';
       readonly actorId: PlayerId;
       readonly claims: readonly ClaimCarDecision[];
+    }
+  | {
+      readonly type: 'UPGRADE_DESIGN';
+      readonly actorId: PlayerId;
+      readonly designId: DesignId;
+      readonly partId: PartId;
+      readonly upgradeSpaceId: UpgradeSpaceId;
+      readonly doubleUpgrade: boolean;
     }
   | {
       readonly type: 'SWAP_RECYCLING_PART';
