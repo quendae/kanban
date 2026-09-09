@@ -12,7 +12,6 @@ import {
   type GameState,
   type KanbanOrderDefinition,
   type KanbanOrderId,
-  type ModelId,
   type PartId,
   type PartTypeId,
   type UpgradeSpaceId,
