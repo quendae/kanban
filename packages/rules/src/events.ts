@@ -1,8 +1,15 @@
 import type { CarMove } from './assembly.js';
-import type { GarageBenefit, KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
+import type {
+  AwardPlaqueReward,
+  GarageBenefit,
+  KanbanOrderOrientation,
+  ModelId,
+  PartTypeId,
+} from './content.js';
 import type { DesignMove } from './design.js';
 import type { Department } from './enums.js';
 import type {
+  AwardPlaqueId,
   DemandId,
   DesignId,
   EventId,
@@ -171,6 +178,27 @@ export type GameEvent =
       readonly department: Department;
       readonly certificationPosition: number;
       readonly administrationSeatUnlocked: boolean;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'PLAYER_BECAME_EXPERT';
+      readonly playerId: PlayerId;
+      readonly department: Department;
+      readonly plaqueChoiceRequired: boolean;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'EXPERT_SEAT_AWARDED';
+      readonly playerId: PlayerId;
+      readonly department: Department;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'AWARD_PLAQUE_CLAIMED';
+      readonly playerId: PlayerId;
+      readonly department: Department;
+      readonly plaqueId: AwardPlaqueId;
+      readonly reward: AwardPlaqueReward;
     }
   | {
       readonly id: EventId;
