@@ -100,6 +100,8 @@ function commandLabel(state: GameState, command: GameCommand): string {
     }
     case 'PROVIDE_ASSEMBLY_PART':
       return `Provide ${partLabel(state, command.partId)} → ${command.model} · 1 Shift`;
+    case 'CLAIM_CARS':
+      return `Claim ${command.claims.length} ${command.claims.length === 1 ? 'car' : 'cars'}`;
     case 'SWAP_RECYCLING_PART':
       return `Recycle ${command.outgoingPartId} ↔ ${command.incomingPartId} · 0 Shifts`;
     case 'FINISH_WORK':
