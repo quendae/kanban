@@ -2,7 +2,7 @@ import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import type { ModelId, PartTypeId } from './content.js';
 import type { DesignId, UpgradeSpaceId } from './ids.js';
 import { getPlayerDesigns, getPlayerParts, getTestTrackCars } from './inventory.js';
-import type { GameState } from './model.js';
+import type { EntityLocation, GameState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
 export type InvariantCode =
@@ -71,9 +71,10 @@ function hasAssemblyNodeForCar(state: GameState, carId: string, nodeId: string):
 function testTrackOrderIsCompact(state: GameState): boolean {
   const slots = Object.values(state.board.cars)
     .filter(
-      (location) => location?.kind === 'BOARD' && location.area === 'test-track',
+      (location): location is Extract<EntityLocation, { readonly kind: 'BOARD' }> =>
+        location?.kind === 'BOARD' && location.area === 'test-track',
     )
-    .map((location) => location!.slot)
+    .map((location) => location.slot)
     .sort((a, b) => a - b);
 
   return slots.every((slot, index) => Number.isInteger(slot) && slot === index);
