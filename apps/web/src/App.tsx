@@ -107,17 +107,14 @@ function commandLabel(state: GameState, command: GameCommand): string {
       return `Upgrade ${designLabel(state, command.designId)} with ${partLabel(state, command.partId)} · ${command.upgradeSpaceId}${command.doubleUpgrade ? ' · double' : ''} · 1 Shift`;
     case 'SWAP_RECYCLING_PART':
       return `Recycle ${command.outgoingPartId} ↔ ${command.incomingPartId} · 0 Shifts`;
+    case 'TRAIN_DEPARTMENT':
+      return `Train ${command.department} · ${command.source === 'BOOK' ? '1 Book' : '1 Shift'}`;
     case 'FINISH_WORK':
       return 'Finish work';
   }
 }
 
-function DepartmentLane({
-  lane,
-  state,
-  legalCommands,
-  onCommand,
-}: {
+function DepartmentLane({ lane, state, legalCommands, onCommand }: {
   readonly lane: DepartmentLaneDefinition;
   readonly state: GameState;
   readonly legalCommands: readonly GameCommand[];
@@ -126,40 +123,19 @@ function DepartmentLane({
   return (
     <section className="department-lane" aria-labelledby={`department-${lane.code}`}>
       <header className="department-header">
-        <span className="department-code" aria-hidden="true">
-          {lane.code}
-        </span>
+        <span className="department-code" aria-hidden="true">{lane.code}</span>
         <h2 id={`department-${lane.code}`}>{lane.label}</h2>
       </header>
-
       <div className="workstation-pair">
         {lane.workstations.map((workstationId) => {
           const workstation = getWorkstation(workstationId);
           const legal = stationCommand(legalCommands, workstationId);
-          const occupant = state.players.find(
-            (player) => player.currentWorkstation === workstationId,
-          );
-
+          const occupant = state.players.find((player) => player.currentWorkstation === workstationId);
           return (
-            <button
-              className="workstation"
-              data-command-type="SELECT_WORKSTATION"
-              data-workstation={workstationId}
-              data-legal={legal ? 'true' : 'false'}
-              disabled={!legal}
-              key={workstationId}
-              onClick={() => {
-                if (legal) onCommand(legal);
-              }}
-              type="button"
-            >
-              <span className="workstation-position">
-                {workstationId.endsWith('LEFT') ? 'Left' : 'Right'}
-              </span>
+            <button className="workstation" data-command-type="SELECT_WORKSTATION" data-workstation={workstationId} data-legal={legal ? 'true' : 'false'} disabled={!legal} key={workstationId} onClick={() => { if (legal) onCommand(legal); }} type="button">
+              <span className="workstation-position">{workstationId.endsWith('LEFT') ? 'Left' : 'Right'}</span>
               <strong>{shiftLabel(workstation.shifts)}</strong>
-              <span className="workstation-occupant">
-                {occupant ? occupant.id : 'Available'}
-              </span>
+              <span className="workstation-occupant">{occupant ? occupant.id : 'Available'}</span>
             </button>
           );
         })}
@@ -183,26 +159,18 @@ function DesignStudio({ state }: { readonly state: GameState }) {
   return (
     <section className="operation-surface design-studio" aria-labelledby="design-studio-title">
       <header className="operation-heading">
-        <div>
-          <span className="operation-kicker">D · Blueprint flow</span>
-          <h2 id="design-studio-title">Design Studio</h2>
-        </div>
+        <div><span className="operation-kicker">D · Blueprint flow</span><h2 id="design-studio-title">Design Studio</h2></div>
         <dl className="deck-readout" aria-label="Design deck counts">
           <div><dt>Top</dt><dd>{getDesignDeck(state, 'row0').length}</dd></div>
           <div><dt>Bottom</dt><dd>{getDesignDeck(state, 'row1').length}</dd></div>
           <div><dt>Central</dt><dd>{getDesignDeck(state, 'central').length}</dd></div>
         </dl>
       </header>
-
       <div className="design-rows">
         {[0, 1].map((row) => (
           <div className="design-row" key={row} aria-label={`Design row ${row + 1}`}>
             <span className="row-index">0{row + 1}</span>
-            <div className="design-track">
-              {getDesignRow(state, row as 0 | 1).map((id) => (
-                <DesignTile designId={id} key={id} state={state} />
-              ))}
-            </div>
+            <div className="design-track">{getDesignRow(state, row as 0 | 1).map((id) => <DesignTile designId={id} key={id} state={state} />)}</div>
           </div>
         ))}
       </div>
@@ -214,25 +182,15 @@ function LogisticsFloor({ state }: { readonly state: GameState }) {
   return (
     <section className="operation-surface logistics-floor" aria-labelledby="logistics-floor-title">
       <header className="operation-heading">
-        <div>
-          <span className="operation-kicker">C · Parts supply</span>
-          <h2 id="logistics-floor-title">Logistics Floor</h2>
-        </div>
-        <div className="kanban-deck-readout">
-          <span>Kanban deck</span>
-          <strong>{state.kanbanOrderDeck.length}</strong>
-        </div>
+        <div><span className="operation-kicker">C · Parts supply</span><h2 id="logistics-floor-title">Logistics Floor</h2></div>
+        <div className="kanban-deck-readout"><span>Kanban deck</span><strong>{state.kanbanOrderDeck.length}</strong></div>
       </header>
-
       <div className="warehouse-grid">
         {PART_TYPE_IDS.map((type) => {
           const stock = getWarehouseParts(state, type);
           return (
             <article className="warehouse-bin" data-part-type={type} key={type}>
-              <div>
-                <strong>{partTypeLabel(type)}</strong>
-                <span>{type}</span>
-              </div>
+              <div><strong>{partTypeLabel(type)}</strong><span>{type}</span></div>
               <b>{stock.length}</b>
               <div className="warehouse-parts" aria-label={`${stock.length} parts in ${partTypeLabel(type)}`}>
                 {stock.length === 0 ? <span className="empty-slot">empty</span> : stock.map((id) => <i key={id}>{id}</i>)}
@@ -250,21 +208,13 @@ function RecyclingBay({ state }: { readonly state: GameState }) {
   return (
     <section className="operation-surface recycling-bay" aria-labelledby="recycling-bay-title">
       <header className="operation-heading">
-        <div>
-          <span className="operation-kicker">Global · 0 Shifts</span>
-          <h2 id="recycling-bay-title">Recycling Bay</h2>
-        </div>
+        <div><span className="operation-kicker">Global · 0 Shifts</span><h2 id="recycling-bay-title">Recycling Bay</h2></div>
         <strong className="pool-count">{recycling.length}/3</strong>
       </header>
       <div className="recycling-slots">
         {[0, 1, 2].map((slot) => {
           const id = recycling[slot];
-          return (
-            <div className="recycling-slot" key={slot}>
-              <span>R{slot + 1}</span>
-              <strong>{id ? partLabel(state, id) : 'Empty'}</strong>
-            </div>
-          );
+          return <div className="recycling-slot" key={slot}><span>R{slot + 1}</span><strong>{id ? partLabel(state, id) : 'Empty'}</strong></div>;
         })}
       </div>
     </section>
@@ -279,10 +229,7 @@ function PlayerRail({ state }: { readonly state: GameState }) {
         const blueprints = getPlayerDesigns(state, player.id).length;
         return (
           <article className="player-slot" data-player={player.id} key={player.id}>
-            <div className="player-identity">
-              <strong>{player.id === 'player:0' ? 'You' : `Bot ${Number(player.id.split(':')[1])}`}</strong>
-              <span>{player.kind}</span>
-            </div>
+            <div className="player-identity"><strong>{player.id === 'player:0' ? 'You' : `Bot ${Number(player.id.split(':')[1])}`}</strong><span>{player.kind}</span></div>
             <dl>
               <div><dt>Station</dt><dd>{player.currentWorkstation ?? '—'}</dd></div>
               <div><dt>Parts</dt><dd>{parts}/{player.partCapacity}</dd></div>
@@ -298,89 +245,29 @@ function PlayerRail({ state }: { readonly state: GameState }) {
   );
 }
 
-function ActionPanel({
-  state,
-  actorId,
-  legalCommands,
-  onCommand,
-}: {
+function ActionPanel({ state, actorId, legalCommands, onCommand }: {
   readonly state: GameState;
   readonly actorId: PlayerId;
   readonly legalCommands: readonly GameCommand[];
   readonly onCommand: (command: GameCommand) => void;
 }) {
-  const start = legalCommands.find(
-    (command): command is Extract<GameCommand, { readonly type: 'START_GAME' }> =>
-      command.type === 'START_GAME',
-  );
-  const workstationChoices = legalCommands.filter(
-    (command) => command.type === 'SELECT_WORKSTATION',
-  ).length;
-  const workCommands = legalCommands.filter(
-    (command) => command.type !== 'START_GAME' && command.type !== 'SELECT_WORKSTATION',
-  );
-
+  const start = legalCommands.find((command): command is Extract<GameCommand, { readonly type: 'START_GAME' }> => command.type === 'START_GAME');
+  const workstationChoices = legalCommands.filter((command) => command.type === 'SELECT_WORKSTATION').length;
+  const workCommands = legalCommands.filter((command) => command.type !== 'START_GAME' && command.type !== 'SELECT_WORKSTATION');
   return (
     <aside className="action-panel" aria-label="Current action">
-      <div className="action-panel-heading">
-        <div>
-          <span className="panel-kicker">Engine legal commands</span>
-          <h2>Current action</h2>
-        </div>
-        <span>{state.phase}</span>
-      </div>
-
-      {start ? (
-        <>
-          <p>Initialize the deterministic four-player development game.</p>
-          <button
-            className="action-command action-command-primary"
-            data-command-type="START_GAME"
-            onClick={() => onCommand(start)}
-            type="button"
-          >
-            Start game
-          </button>
-        </>
-      ) : null}
-
-      {workstationChoices > 0 ? (
-        <div className="selection-instruction">
-          <strong>{actorId}</strong>
-          <span>{workstationChoices} legal workstation choices</span>
-          <p>Choose a highlighted workstation directly on the factory alley.</p>
-        </div>
-      ) : null}
-
+      <div className="action-panel-heading"><div><span className="panel-kicker">Engine legal commands</span><h2>Current action</h2></div><span>{state.phase}</span></div>
+      {start ? <><p>Initialize the deterministic four-player development game.</p><button className="action-command action-command-primary" data-command-type="START_GAME" onClick={() => onCommand(start)} type="button">Start game</button></> : null}
+      {workstationChoices > 0 ? <div className="selection-instruction"><strong>{actorId}</strong><span>{workstationChoices} legal workstation choices</span><p>Choose a highlighted workstation directly on the factory alley.</p></div> : null}
       {workCommands.length > 0 ? (
         <div className="command-stack" aria-label="Legal work commands">
-          <div className="shift-summary">
-            <div><span>Base Shifts</span><strong>{getBaseShifts(state, actorId)}</strong></div>
-            <div><span>Max usable</span><strong>{getMaximumUsableShifts(state, actorId)}</strong></div>
-          </div>
+          <div className="shift-summary"><div><span>Base Shifts</span><strong>{getBaseShifts(state, actorId)}</strong></div><div><span>Max usable</span><strong>{getMaximumUsableShifts(state, actorId)}</strong></div></div>
           {workCommands.map((command, index) => (
-            <button
-              className={
-                command.type === 'FINISH_WORK' || command.type === 'END_DESIGN_SELECTION'
-                  ? 'action-command action-command-secondary'
-                  : index === 0
-                    ? 'action-command action-command-primary'
-                    : 'action-command'
-              }
-              data-command-type={command.type}
-              key={`${command.type}-${index}-${commandLabel(state, command)}`}
-              onClick={() => onCommand(command)}
-              type="button"
-            >
-              {commandLabel(state, command)}
-            </button>
+            <button className={command.type === 'FINISH_WORK' || command.type === 'END_DESIGN_SELECTION' ? 'action-command action-command-secondary' : index === 0 ? 'action-command action-command-primary' : 'action-command'} data-command-type={command.type} key={`${command.type}-${index}-${commandLabel(state, command)}`} onClick={() => onCommand(command)} type="button">{commandLabel(state, command)}</button>
           ))}
         </div>
       ) : null}
-
-      {!start && workstationChoices === 0 && workCommands.length === 0 ? (
-        <p className="action-hint">No player command is available in this development phase.</p>
-      ) : null}
+      {!start && workstationChoices === 0 && workCommands.length === 0 ? <p className="action-hint">No player command is available in this development phase.</p> : null}
     </aside>
   );
 }
@@ -404,58 +291,17 @@ export function App() {
   return (
     <main className="game-shell">
       <header className="game-header">
-        <div className="brand-lockup">
-          <span className="eyebrow">Factory operating board</span>
-          <h1>Kanban: Automotive Revolution</h1>
-          <span>Original 2014 rules implementation</span>
-        </div>
-
-        <dl className="game-status">
-          <div><dt>Phase</dt><dd>{state.phase}</dd></div>
-          <div><dt>Day</dt><dd>{state.dayIndex + 1}</dd></div>
-          <div><dt>Active actor</dt><dd>{state.activeActorId ?? '—'}</dd></div>
-          <div><dt>Sandra</dt><dd>{state.sandra.department}</dd></div>
-        </dl>
+        <div className="brand-lockup"><span className="eyebrow">Factory operating board</span><h1>Kanban: Automotive Revolution</h1><span>Original 2014 rules implementation</span></div>
+        <dl className="game-status"><div><dt>Phase</dt><dd>{state.phase}</dd></div><div><dt>Day</dt><dd>{state.dayIndex + 1}</dd></div><div><dt>Active actor</dt><dd>{state.activeActorId ?? '—'}</dd></div><div><dt>Sandra</dt><dd>{state.sandra.department}</dd></div></dl>
       </header>
-
-      <div className="content-provenance" role="note">
-        <strong>{state.content.authoritative ? 'Authoritative content' : 'Synthetic development content'}</strong>
-        <span>{state.content.id} · IDs and distributions are replaceable fixtures, not claimed original component data.</span>
-      </div>
-
+      <div className="content-provenance" role="note"><strong>{state.content.authoritative ? 'Authoritative content' : 'Synthetic development content'}</strong><span>{state.content.id} · IDs and distributions are replaceable fixtures, not claimed original component data.</span></div>
       <div className="game-layout">
         <div className="factory-column">
           <section className="factory-board" aria-label="Workstation Alley">
-            <div className="factory-board-heading">
-              <div>
-                <span className="section-kicker">Daily routing</span>
-                <h2>Workstation Alley</h2>
-                <p>Left → right determines Working Phase priority.</p>
-              </div>
-              <span className="ruleset-id">{state.ruleset}</span>
-            </div>
-
-            <div className="department-grid">
-              {DEPARTMENT_LANES.map((lane) => (
-                <DepartmentLane
-                  key={lane.code}
-                  lane={lane}
-                  legalCommands={legalCommands}
-                  onCommand={dispatch}
-                  state={state}
-                />
-              ))}
-            </div>
-
-            <section className="sandra-desk" aria-label="Sandra Administration desk">
-              <span className="department-code" aria-hidden="true">F</span>
-              <div>
-                <strong>Sandra</strong>
-                <span>Administration desk · reserved</span>
-              </div>
-            </section>
+            <div className="factory-board-heading"><div><span className="section-kicker">Daily routing</span><h2>Workstation Alley</h2><p>Left → right determines Working Phase priority.</p></div><span className="ruleset-id">{state.ruleset}</span></div>
+            <div className="department-grid">{DEPARTMENT_LANES.map((lane) => <DepartmentLane key={lane.code} lane={lane} legalCommands={legalCommands} onCommand={dispatch} state={state} />)}</div>
+            <section className="sandra-desk" aria-label="Sandra Administration desk"><span className="department-code" aria-hidden="true">F</span><div><strong>Sandra</strong><span>Administration desk · reserved</span></div></section>
           </section>
-
           <section className="operations-deck" aria-label="Factory resources">
             <AssemblyOperatingSurface state={state} />
             <TestingInnovationSurface state={state} />
@@ -464,20 +310,11 @@ export function App() {
             <RecyclingBay state={state} />
           </section>
         </div>
-
         <div className="control-column">
-          <ActionPanel
-            actorId={actorId}
-            legalCommands={legalCommands}
-            onCommand={dispatch}
-            state={state}
-          />
-          <p className="command-status" key={state.eventIndex} role="status" aria-live="polite">
-            {statusMessage}
-          </p>
+          <ActionPanel actorId={actorId} legalCommands={legalCommands} onCommand={dispatch} state={state} />
+          <p className="command-status" key={state.eventIndex} role="status" aria-live="polite">{statusMessage}</p>
         </div>
       </div>
-
       <PlayerRail state={state} />
     </main>
   );
