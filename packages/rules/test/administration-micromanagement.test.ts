@@ -13,19 +13,20 @@ function administrationState(): GameState {
     ...shell,
     phase: 'WORK',
     activeActorId: 'player:0',
-    workOrder: ['player:0'],
-    workCursor: 0,
-    players: shell.players.map((player) =>
-      player.id === 'player:0'
-        ? {
-            ...player,
-            currentDepartment: 'ADMINISTRATION',
-            currentWorkstation: 'E_RIGHT',
-            baseShiftsToday: 3,
-            books: 1,
-          }
-        : player,
-    ),
+    workOrder: ['player:1', 'player:0'],
+    workCursor: 1,
+    players: shell.players.map((player) => {
+      if (player.id === 'player:0') {
+        return {
+          ...player,
+          currentDepartment: 'ADMINISTRATION',
+          currentWorkstation: 'E_RIGHT',
+          baseShiftsToday: 2,
+          books: 1,
+        };
+      }
+      return { ...player, done: true };
+    }),
   };
 }
 
