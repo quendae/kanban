@@ -281,6 +281,53 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           : player),
         eventIndex: state.eventIndex + 1,
       };
+    case 'SANDRA_MOVED':
+      return {
+        ...state,
+        sandra: { ...state.sandra, department: event.department, workstation: event.workstationId },
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'SANDRA_AUDIT_RESOLVED': {
+      const deltas = new Map(event.results.map((result) => [result.playerId, result.ppDelta]));
+      return {
+        ...state,
+        players: state.players.map((player) => ({
+          ...player,
+          pp: Math.max(0, player.pp + (deltas.get(player.id) ?? 0)),
+        })),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'SANDRA_DEPARTMENT_TASK_RESOLVED': {
+      switch (event.task.kind) {
+        case 'TESTING':
+          return {
+            ...state,
+            board: { ...state.board, paceCarPosition: event.task.paceCarPosition },
+            eventIndex: state.eventIndex + 1,
+          };
+        case 'ASSEMBLY':
+        case 'LOGISTICS': {
+          const parts = { ...state.board.parts };
+          for (const partId of event.task.returnedPartIds) parts[partId] = { kind: 'SUPPLY' };
+          return { ...state, board: { ...state.board, parts }, eventIndex: state.eventIndex + 1 };
+        }
+        case 'DESIGN': {
+          const designs = { ...state.board.designs };
+          event.task.centralDeck.forEach((designId, slot) => {
+            designs[designId] = { kind: 'BOARD', area: 'design-deck:central', slot };
+          });
+          return {
+            ...state,
+            board: { ...state.board, designs },
+            rng: event.task.rng,
+            eventIndex: state.eventIndex + 1,
+          };
+        }
+        case 'ADMINISTRATION':
+          return { ...state, eventIndex: state.eventIndex + 1 };
+      }
+    }
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return { ...state, players: state.players.map((player) => player.id === event.playerId ? { ...player, done: true } : player), workCursor: nextCursor, activeActorId: state.workOrder[nextCursor] ?? null, eventIndex: state.eventIndex + 1 };
