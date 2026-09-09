@@ -188,6 +188,50 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         } : player),
         eventIndex: state.eventIndex + 1,
       };
+    case 'PLAYER_BECAME_EXPERT':
+      return {
+        ...state,
+        players: state.players.map((player) => player.id === event.playerId ? {
+          ...player,
+          expertDepartments: player.expertDepartments.includes(event.department)
+            ? player.expertDepartments
+            : [...player.expertDepartments, event.department],
+        } : player),
+        pendingAwardPlaqueChoice: event.plaqueChoiceRequired
+          ? { playerId: event.playerId, department: event.department }
+          : state.pendingAwardPlaqueChoice,
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'EXPERT_SEAT_AWARDED':
+      return {
+        ...state,
+        players: state.players.map((player) => player.id === event.playerId ? {
+          ...player,
+          conferenceSeatsFaceUp: player.conferenceSeatsFaceUp + 1,
+          conferenceSeatsFaceDown: Math.max(0, player.conferenceSeatsFaceDown - 1),
+        } : player),
+        board: {
+          ...state.board,
+          expertSeatAvailable: { ...state.board.expertSeatAvailable, [event.department]: false },
+        },
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'AWARD_PLAQUE_CLAIMED':
+      return {
+        ...state,
+        players: state.players.map((player) => player.id === event.playerId
+          ? applyGarageBenefits(player, [event.reward])
+          : player),
+        board: {
+          ...state.board,
+          awardPlaquePools: {
+            ...state.board.awardPlaquePools,
+            [event.department]: state.board.awardPlaquePools[event.department].filter((id) => id !== event.plaqueId),
+          },
+        },
+        pendingAwardPlaqueChoice: null,
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return { ...state, players: state.players.map((player) => player.id === event.playerId ? { ...player, done: true } : player), workCursor: nextCursor, activeActorId: state.workOrder[nextCursor] ?? null, eventIndex: state.eventIndex + 1 };
