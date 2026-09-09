@@ -17,7 +17,7 @@ export * from './factory-goals.js';
 export * from './hr.js';
 export * from './ids.js';
 export * from './inventory.js';
-export * from './invariants.js';
+export * from './m4-invariants.js';
 export * from './logistics.js';
 export * from './model.js';
 export * from './recycling.js';
