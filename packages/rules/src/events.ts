@@ -28,6 +28,7 @@ import type {
   PendingRewardType,
 } from './model.js';
 import type { RngState } from './rng.js';
+import type { SandraAuditResult, SandraDepartmentTask, SandraMode } from './sandra.js';
 import type {
   ClaimCarPlacement,
   ClaimDesignMove,
@@ -228,6 +229,25 @@ export type GameEvent =
       readonly type: 'MICROMANAGE_STARTED';
       readonly playerId: PlayerId;
       readonly department: MicromanageDepartment;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'SANDRA_MOVED';
+      readonly department: Department;
+      readonly workstationId: WorkstationId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'SANDRA_AUDIT_RESOLVED';
+      readonly department: Department;
+      readonly mode: SandraMode;
+      readonly results: readonly SandraAuditResult[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'SANDRA_DEPARTMENT_TASK_RESOLVED';
+      readonly department: Department;
+      readonly task: SandraDepartmentTask;
     }
   | {
       readonly id: EventId;
