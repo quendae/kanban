@@ -17,6 +17,7 @@ export interface TrainingAdvancePlan {
   readonly certificationEarned: boolean;
   readonly certificationPosition: number;
   readonly administrationSeatUnlocked: boolean;
+  readonly expertEarned: boolean;
 }
 
 export interface TrainingAdvanceFailure {
@@ -102,6 +103,10 @@ export function planTrainingAdvance(
     fromLevel < state.content.trainingRules.certificationLevel &&
     toLevel >= state.content.trainingRules.certificationLevel &&
     !player.certifications.includes(command.department);
+  const expertEarned =
+    fromLevel < expertLevel &&
+    toLevel >= expertLevel &&
+    !player.expertDepartments.includes(command.department);
 
   return {
     ok: true,
@@ -118,5 +123,6 @@ export function planTrainingAdvance(
       ? player.certificationPosition + 1
       : player.certificationPosition,
     administrationSeatUnlocked: certificationEarned && command.department === 'ADMINISTRATION',
+    expertEarned,
   };
 }
