@@ -331,6 +331,48 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         meetingScheduled: true,
         eventIndex: state.eventIndex + 1,
       };
+    case 'DESIGN_UPGRADED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.partId]: { kind: 'BOARD', area: event.upgradeSpaceId, slot: 0 },
+          },
+          designUpgrades: {
+            ...state.board.designUpgrades,
+            [event.designId]: {
+              partType: event.partType,
+              doubleUpgrade: event.doubleUpgrade,
+            },
+          },
+          partValues: {
+            ...state.board.partValues,
+            [event.partType]: event.newPartValue,
+          },
+          doubleUpgradedPartTypes: event.doubleUpgrade
+            ? {
+                ...state.board.doubleUpgradedPartTypes,
+                [event.partType]: event.playerId,
+              }
+            : state.board.doubleUpgradedPartTypes,
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? applyGarageBenefits(
+                {
+                  ...player,
+                  shiftsSpentToday: player.shiftsSpentToday + 1,
+                  pp: player.pp + event.ppAwarded,
+                  doubleUpgradeUsed: player.doubleUpgradeUsed || event.doubleUpgrade,
+                },
+                [event.benefit],
+              )
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,
