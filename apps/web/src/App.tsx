@@ -15,6 +15,7 @@ import {
   getWorkstation,
   type DesignId,
   type GameCommand,
+  type GameEvent,
   type GameState,
   type PartId,
   type PartTypeId,
@@ -23,6 +24,7 @@ import {
 } from '@kanban/rules';
 import { createDevelopmentGame } from './development-game.js';
 import { AssemblyOperatingSurface, TestingInnovationSurface } from './M3Surfaces.js';
+import { HumanResourcesSurface, SandraWeekSurface } from './M4Surfaces.js';
 
 interface DepartmentLaneDefinition {
   readonly label: string;
@@ -280,6 +282,7 @@ function ActionPanel({ state, actorId, legalCommands, onCommand }: {
 
 export function App() {
   const [state, setState] = useState<GameState>(() => createDevelopmentGame());
+  const [recentEvents, setRecentEvents] = useState<readonly GameEvent[]>([]);
   const [statusMessage, setStatusMessage] = useState('Ready for factory setup.');
   const actorId = commandActor(state);
   const legalCommands = getLegalCommands(state, actorId);
@@ -288,6 +291,7 @@ export function App() {
     const result = applyCommand(state, command);
     if (result.status === 'ACCEPTED') {
       setState(result.state);
+      setRecentEvents(result.events);
       setStatusMessage(`Applied: ${commandLabel(state, command)}.`);
       return;
     }
@@ -298,7 +302,7 @@ export function App() {
     <main className="game-shell">
       <header className="game-header">
         <div className="brand-lockup"><span className="eyebrow">Factory operating board</span><h1>Kanban: Automotive Revolution</h1><span>Original 2014 rules implementation</span></div>
-        <dl className="game-status"><div><dt>Phase</dt><dd>{state.phase}</dd></div><div><dt>Day</dt><dd>{state.dayIndex + 1}</dd></div><div><dt>Active actor</dt><dd>{state.activeActorId ?? '—'}</dd></div><div><dt>Sandra</dt><dd>{state.sandra.department}</dd></div></dl>
+        <dl className="game-status"><div><dt>Phase</dt><dd>{state.phase}</dd></div><div><dt>Day</dt><dd>{state.dayIndex + 1}</dd></div><div><dt>Week</dt><dd>{state.week} / 3</dd></div><div><dt>Production Cycle</dt><dd>{state.productionCycle} / 2</dd></div><div><dt>Active actor</dt><dd>{state.activeActorId ?? '—'}</dd></div><div><dt>Sandra</dt><dd>{state.sandra.department}</dd></div></dl>
       </header>
       <div className="content-provenance" role="note"><strong>{state.content.authoritative ? 'Authoritative content' : 'Synthetic development content'}</strong><span>{state.content.id} · IDs and distributions are replaceable fixtures, not claimed original component data.</span></div>
       <div className="game-layout">
@@ -314,9 +318,11 @@ export function App() {
             <DesignStudio state={state} />
             <LogisticsFloor state={state} />
             <RecyclingBay state={state} />
+            <HumanResourcesSurface state={state} />
           </section>
         </div>
         <div className="control-column">
+          <SandraWeekSurface recentEvents={recentEvents} state={state} />
           <ActionPanel actorId={actorId} legalCommands={legalCommands} onCommand={dispatch} state={state} />
           <p className="command-status" key={state.eventIndex} role="status" aria-live="polite">{statusMessage}</p>
         </div>
