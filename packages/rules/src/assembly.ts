@@ -1,3 +1,4 @@
+import { getEffectiveWorkDepartment } from './administration.js';
 import type { ModelId, PartTypeId } from './content.js';
 import type { AssemblyNodeId, CarId, PartId, PlayerId } from './ids.js';
 import {
@@ -73,8 +74,8 @@ export function getAssemblyTurnStartCleanupPartIds(
   if (
     state.phase !== 'WORK' ||
     state.activeActorId !== playerId ||
-    player?.currentDepartment !== 'ASSEMBLY' ||
-    player.shiftsSpentToday !== 0
+    getEffectiveWorkDepartment(state, playerId) !== 'ASSEMBLY' ||
+    player?.shiftsSpentToday !== 0
   ) {
     return [];
   }
