@@ -141,7 +141,7 @@ export interface GameContent {
   readonly kanbanOrders: Readonly<Partial<Record<KanbanOrderId, KanbanOrderDefinition>>>;
   readonly demands: Readonly<Partial<Record<DemandId, DemandDefinition>>>;
   readonly assemblyGraph: AssemblyGraphDefinition;
-  readonly garageBenefits: readonly GarageBenefit[];
+  readonly garageBenefits?: readonly GarageBenefit[];
   readonly upgradeSpaces: Readonly<Partial<Record<UpgradeSpaceId, UpgradeSpaceDefinition>>>;
   readonly testingRules: TestingRulesConfig;
 }
