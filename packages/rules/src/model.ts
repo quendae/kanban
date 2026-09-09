@@ -61,10 +61,16 @@ export interface ActiveDemandState {
   readonly redSeatsRemaining: number;
 }
 
+export interface DesignUpgradeState {
+  readonly partType: PartTypeId;
+  readonly doubleUpgrade: boolean;
+}
+
 export interface BoardState {
   readonly cars: Readonly<Partial<Record<CarId, EntityLocation>>>;
   readonly parts: Readonly<Partial<Record<PartId, EntityLocation>>>;
   readonly designs: Readonly<Partial<Record<DesignId, EntityLocation>>>;
+  readonly designUpgrades: Readonly<Partial<Record<DesignId, DesignUpgradeState>>>;
   readonly partValues: Readonly<Record<PartTypeId, number>>;
   readonly activeDemands: readonly ActiveDemandState[];
   readonly demandDeck: readonly DemandId[];
