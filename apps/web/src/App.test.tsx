@@ -29,4 +29,17 @@ describe('workstation alley development UI', () => {
     expect(markup).toContain('data-workstation="A_LEFT"');
     expect(markup).toContain('data-workstation="E_RIGHT"');
   });
+
+  it('renders the Design, Logistics and Recycling operating surfaces with explicit development-content provenance', () => {
+    const markup = renderToStaticMarkup(<App />);
+
+    expect(markup).toContain('Design Studio');
+    expect(markup).toContain('Logistics Floor');
+    expect(markup).toContain('Recycling Bay');
+    expect(markup).toContain('Synthetic development content');
+    expect(markup).toContain('Blueprints');
+    expect(markup).toContain('Parts');
+    expect(markup).toContain('Kanban Orders');
+    expect(markup).toContain('aria-live="polite"');
+  });
 });

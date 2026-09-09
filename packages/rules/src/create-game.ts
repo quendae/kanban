@@ -1,4 +1,9 @@
-import { RULESET_ID } from './constants.js';
+import {
+  BASE_DESIGN_CAPACITY,
+  BASE_PART_CAPACITY,
+  RULESET_ID,
+} from './constants.js';
+import { EMPTY_GAME_CONTENT } from './content.js';
 import type { PlayerCount } from './enums.js';
 import { makeId } from './ids.js';
 import type { BoardState, GameState, PlayerState } from './model.js';
@@ -24,6 +29,12 @@ function createPlayer(index: number): PlayerState {
     books: 0,
     vouchers: 0,
     genericRedSeats: 0,
+    partCapacity: BASE_PART_CAPACITY,
+    designCapacity: BASE_DESIGN_CAPACITY,
+    certifications: [],
+    kanbanOrders: [],
+    kanbanOrderIssuedToday: false,
+    logisticsVoucherTakenToday: false,
   };
 }
 
@@ -45,6 +56,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     ruleset: RULESET_ID,
     seed: input.seed,
     rng: createRng(input.seed),
+    content: EMPTY_GAME_CONTENT,
     playerCount: input.playerCount,
     phase: 'SETUP',
     dayIndex: 0,
@@ -52,8 +64,10 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     productionCycle: 0,
     meetingScheduled: false,
     activeActorId: null,
+    activeDepartmentAction: null,
     players,
     board,
+    kanbanOrderDeck: [],
     sandra: {
       department: 'SANDRA_DESK',
       mode: 'NICE',

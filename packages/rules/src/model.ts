@@ -1,5 +1,6 @@
+import type { GameContent } from './content.js';
 import type { Department, GamePhase, PlayerCount, RulesetId } from './enums.js';
-import type { CarId, DesignId, PartId, PlayerId } from './ids.js';
+import type { CarId, DesignId, KanbanOrderId, PartId, PlayerId } from './ids.js';
 import type { RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
@@ -19,6 +20,12 @@ export interface PlayerState {
   readonly books: number;
   readonly vouchers: number;
   readonly genericRedSeats: number;
+  readonly partCapacity: number;
+  readonly designCapacity: number;
+  readonly certifications: readonly Department[];
+  readonly kanbanOrders: readonly KanbanOrderId[];
+  readonly kanbanOrderIssuedToday: boolean;
+  readonly logisticsVoucherTakenToday: boolean;
 }
 
 export interface SandraState {
@@ -54,11 +61,19 @@ export interface PendingReward {
   readonly amount: number;
 }
 
+export type ActiveDepartmentAction =
+  | {
+      readonly kind: 'DESIGN_SELECTION';
+      readonly playerId: PlayerId;
+    }
+  | null;
+
 export interface GameState {
   readonly schemaVersion: 1;
   readonly ruleset: RulesetId;
   readonly seed: string;
   readonly rng: RngState;
+  readonly content: GameContent;
   readonly playerCount: PlayerCount;
   readonly phase: GamePhase;
   readonly dayIndex: number;
@@ -66,8 +81,10 @@ export interface GameState {
   readonly productionCycle: number;
   readonly meetingScheduled: boolean;
   readonly activeActorId: PlayerId | 'sandra' | null;
+  readonly activeDepartmentAction: ActiveDepartmentAction;
   readonly players: readonly PlayerState[];
   readonly board: BoardState;
+  readonly kanbanOrderDeck: readonly KanbanOrderId[];
   readonly sandra: SandraState;
   readonly pendingRewards: readonly PendingReward[];
   readonly selectionOrder: readonly PlayerId[];

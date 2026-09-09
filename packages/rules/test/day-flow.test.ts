@@ -119,6 +119,30 @@ describe('Working Phase', () => {
     expect(last.state.workOrder).toEqual([]);
   });
 
+  it('consumes only Banked Shifts actually used beyond base work before adding pending Banked Shifts', () => {
+    const source = workingGame();
+    const state = {
+      ...source,
+      players: source.players.map((player) =>
+        player.id === 'player:0'
+          ? { ...player, bankedShifts: 2, shiftsSpentToday: 3 }
+          : player,
+      ),
+      pendingRewards: [
+        { playerId: 'player:0' as const, type: 'BANKED_SHIFT' as const, amount: 1 },
+      ],
+    };
+
+    const first = applyCommand(state, { type: 'FINISH_WORK', actorId: 'player:0' });
+    if (first.status !== 'ACCEPTED') throw new Error('first finish failed');
+    const last = applyCommand(first.state, { type: 'FINISH_WORK', actorId: 'player:1' });
+    expect(last.status).toBe('ACCEPTED');
+    if (last.status !== 'ACCEPTED') return;
+
+    // base = 2, spent = 3 => consume one of the two banked Shifts; then add one pending Shift.
+    expect(last.state.players[0]?.bankedShifts).toBe(2);
+  });
+
   it('uses today’s left-to-right workstation positions as tomorrow’s selection order', () => {
     const state = workingGame('D_RIGHT', 'A_RIGHT');
     expect(state.workOrder).toEqual(['player:1', 'player:0']);

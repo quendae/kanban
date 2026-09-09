@@ -17,6 +17,10 @@ function rewardTotal(
     .reduce((total, reward) => total + reward.amount, 0);
 }
 
+function usedBankedShifts(baseShiftsToday: number, shiftsSpentToday: number): number {
+  return Math.max(0, shiftsSpentToday - baseShiftsToday);
+}
+
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
   switch (event.type) {
     case 'GAME_STARTED':
@@ -55,6 +59,147 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         activeActorId: event.workOrder[0] ?? null,
         eventIndex: state.eventIndex + 1,
       };
+    case 'DESIGN_SELECTION_STARTED':
+      return {
+        ...state,
+        activeDepartmentAction: { kind: 'DESIGN_SELECTION', playerId: event.playerId },
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DESIGN_TAKEN':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          designs: {
+            ...state.board.designs,
+            [event.designId]: {
+              kind: 'PLAYER',
+              playerId: event.playerId,
+              area: 'blueprints',
+              slot: event.destinationSlot,
+            },
+          },
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
+        pendingRewards:
+          event.bonus === null
+            ? state.pendingRewards
+            : [...state.pendingRewards, { playerId: event.playerId, type: event.bonus, amount: 1 }],
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DESIGN_SELECTION_ENDED': {
+      const designs = { ...state.board.designs };
+      for (const move of event.moves) designs[move.designId] = move.location;
+      return {
+        ...state,
+        board: { ...state.board, designs },
+        activeDepartmentAction: null,
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'PARTS_COLLECTED': {
+      const parts = { ...state.board.parts };
+      event.partIds.forEach((partId, index) => {
+        const slot = event.destinationSlots[index];
+        if (slot === undefined) throw new Error('PARTS_COLLECTED destination slot mismatch');
+        parts[partId] = {
+          kind: 'PLAYER',
+          playerId: event.playerId,
+          area: 'parts',
+          slot,
+        };
+      });
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'KANBAN_ORDER_ISSUED': {
+      const parts = { ...state.board.parts };
+      for (const move of event.refillMoves) {
+        parts[move.partId] = {
+          kind: 'BOARD',
+          area: `warehouse:${move.partType}`,
+          slot: move.destinationSlot,
+        };
+      }
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        players: state.players.map((player) => {
+          if (player.id !== event.playerId) return player;
+          const remainingOrders = player.kanbanOrders.filter((orderId) => orderId !== event.orderId);
+          return {
+            ...player,
+            shiftsSpentToday: player.shiftsSpentToday + 1,
+            kanbanOrderIssuedToday: true,
+            kanbanOrders:
+              event.replacementOrderId === null
+                ? remainingOrders
+                : [...remainingOrders, event.replacementOrderId],
+          };
+        }),
+        kanbanOrderDeck:
+          event.replacementOrderId === null
+            ? [...state.kanbanOrderDeck, event.orderId]
+            : [...state.kanbanOrderDeck.slice(1), event.orderId],
+        pendingRewards: [
+          ...state.pendingRewards,
+          { playerId: event.playerId, type: 'BANKED_SHIFT', amount: 1 },
+        ],
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'PARTS_VOUCHER_TAKEN':
+      return {
+        ...state,
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? {
+                ...player,
+                shiftsSpentToday: player.shiftsSpentToday + event.shiftCost,
+                logisticsVoucherTakenToday: true,
+              }
+            : player,
+        ),
+        pendingRewards: [
+          ...state.pendingRewards,
+          { playerId: event.playerId, type: 'VOUCHER', amount: 1 },
+        ],
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'RECYCLING_PART_SWAPPED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.outgoingPartId]: {
+              kind: 'BOARD',
+              area: 'recycling',
+              slot: event.recyclingSlot,
+            },
+            [event.incomingPartId]: {
+              kind: 'PLAYER',
+              playerId: event.playerId,
+              area: 'parts',
+              slot: event.playerSlot,
+            },
+          },
+        },
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return {
@@ -73,7 +218,11 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         players: state.players.map((player) => ({
           ...player,
           bankedShifts:
-            player.bankedShifts + rewardTotal(state, player.id, 'BANKED_SHIFT'),
+            Math.max(
+              0,
+              player.bankedShifts -
+                usedBankedShifts(player.baseShiftsToday, player.shiftsSpentToday),
+            ) + rewardTotal(state, player.id, 'BANKED_SHIFT'),
           books: player.books + rewardTotal(state, player.id, 'BOOK'),
           vouchers: player.vouchers + rewardTotal(state, player.id, 'VOUCHER'),
           previousDepartment: player.currentDepartment,
@@ -82,7 +231,10 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           baseShiftsToday: 0,
           shiftsSpentToday: 0,
           done: false,
+          kanbanOrderIssuedToday: false,
+          logisticsVoucherTakenToday: false,
         })),
+        activeDepartmentAction: null,
         pendingRewards: [],
         dayIndex: state.dayIndex + 1,
         phase: 'SELECT_DEPARTMENT',
