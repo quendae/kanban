@@ -134,7 +134,8 @@ export function planSandraAudit(state: GameState, department: Department): Sandr
     if (predicatePassed && mode === 'NICE') {
       ppDelta = player.bankedShifts;
     } else if (predicatePassed && mode === 'MEAN') {
-      ppDelta = -Math.min(player.pp, Math.max(0, 5 - player.bankedShifts));
+      const loss = Math.min(player.pp, Math.max(0, 5 - player.bankedShifts));
+      ppDelta = loss === 0 ? 0 : -loss;
     }
     return {
       playerId: player.id,
