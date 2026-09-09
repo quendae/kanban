@@ -297,6 +297,25 @@ function trainingErrors(state: GameState, command: Extract<GameCommand, { readon
   return plan.ok ? [] : plan.errors;
 }
 
+function awardPlaqueChoiceErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'CHOOSE_AWARD_PLAQUE' }>,
+): readonly RuleErrorCode[] {
+  const pending = state.pendingAwardPlaqueChoice;
+  if (pending === null) return ['AWARD_PLAQUE_CHOICE_NOT_PENDING'];
+
+  const errors: RuleErrorCode[] = [];
+  if (pending.playerId !== command.actorId) errors.push('WRONG_ACTOR');
+  if (pending.department !== command.department) errors.push('AWARD_PLAQUE_CHOICE_NOT_PENDING');
+  if (!state.board.awardPlaquePools[command.department].includes(command.plaqueId)) {
+    errors.push('AWARD_PLAQUE_NOT_AVAILABLE');
+  }
+  if (!state.content.awardPlaques[command.plaqueId]) {
+    errors.push('AWARD_PLAQUE_DEFINITION_MISSING');
+  }
+  return errors;
+}
+
 function recyclingSwapErrors(state: GameState, command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, command.actorId);
   const plan = getRecyclingSwapPlan(state, command.actorId, command.outgoingPartId, command.incomingPartId);
@@ -368,6 +387,19 @@ function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleEr
 }
 
 export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
+  const pendingPlaque = state.pendingAwardPlaqueChoice;
+  if (pendingPlaque !== null) {
+    if (pendingPlaque.playerId !== playerId) return [];
+    return state.board.awardPlaquePools[pendingPlaque.department]
+      .filter((plaqueId) => state.content.awardPlaques[plaqueId] !== undefined)
+      .map((plaqueId) => ({
+        type: 'CHOOSE_AWARD_PLAQUE' as const,
+        actorId: playerId,
+        department: pendingPlaque.department,
+        plaqueId,
+      }));
+  }
+
   if (state.phase === 'SETUP') {
     const player = state.players.find((candidate) => candidate.id === playerId);
     if (!player || player.kind !== 'HUMAN' || player.id !== 'player:0') return [];
@@ -423,6 +455,10 @@ export function getLegalCommands(state: GameState, playerId: PlayerId): readonly
 }
 
 function validateCommand(state: GameState, command: GameCommand): readonly RuleErrorCode[] {
+  if (state.pendingAwardPlaqueChoice !== null && command.type !== 'CHOOSE_AWARD_PLAQUE') {
+    return ['AWARD_PLAQUE_CHOICE_REQUIRED'];
+  }
+
   switch (command.type) {
     case 'START_GAME': {
       if (state.phase !== 'SETUP') return ['GAME_ALREADY_STARTED'];
@@ -442,6 +478,7 @@ function validateCommand(state: GameState, command: GameCommand): readonly RuleE
     case 'UPGRADE_DESIGN': return upgradeDesignErrors(state, command);
     case 'SWAP_RECYCLING_PART': return recyclingSwapErrors(state, command);
     case 'TRAIN_DEPARTMENT': return trainingErrors(state, command);
+    case 'CHOOSE_AWARD_PLAQUE': return awardPlaqueChoiceErrors(state, command);
     case 'FINISH_WORK': return finishWorkErrors(state, command.actorId);
   }
 }
@@ -511,8 +548,29 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       const plan = planTrainingAdvance(state, command);
       if (!plan.ok) throw new Error(`Validated training cannot resolve: ${plan.errors.join(',')}`);
       const events: GameEvent[] = [{ id: makeId('event', state.eventIndex), type: 'TRAINING_ADVANCED', playerId: plan.playerId, department: plan.department, fromLevel: plan.fromLevel, toLevel: plan.toLevel, source: plan.source, shiftCost: plan.shiftCost, bookCost: plan.bookCost, tieOrder: plan.tieOrder }];
-      if (plan.certificationEarned) events.push({ id: makeId('event', state.eventIndex + 1), type: 'PLAYER_CERTIFIED', playerId: plan.playerId, department: plan.department, certificationPosition: plan.certificationPosition, administrationSeatUnlocked: plan.administrationSeatUnlocked });
+      if (plan.certificationEarned) {
+        events.push({ id: makeId('event', state.eventIndex + events.length), type: 'PLAYER_CERTIFIED', playerId: plan.playerId, department: plan.department, certificationPosition: plan.certificationPosition, administrationSeatUnlocked: plan.administrationSeatUnlocked });
+      }
+      if (plan.expertEarned) {
+        const plaqueChoiceRequired = state.board.awardPlaquePools[plan.department].length > 0;
+        events.push({ id: makeId('event', state.eventIndex + events.length), type: 'PLAYER_BECAME_EXPERT', playerId: plan.playerId, department: plan.department, plaqueChoiceRequired });
+        if (state.board.expertSeatAvailable[plan.department]) {
+          events.push({ id: makeId('event', state.eventIndex + events.length), type: 'EXPERT_SEAT_AWARDED', playerId: plan.playerId, department: plan.department });
+        }
+      }
       return events;
+    }
+    case 'CHOOSE_AWARD_PLAQUE': {
+      const definition = state.content.awardPlaques[command.plaqueId];
+      if (!definition) throw new Error('Validated Award Plaque choice has no definition');
+      return [{
+        id: makeId('event', state.eventIndex),
+        type: 'AWARD_PLAQUE_CLAIMED',
+        playerId: command.actorId,
+        department: command.department,
+        plaqueId: command.plaqueId,
+        reward: definition.reward,
+      }];
     }
     case 'FINISH_WORK': {
       const events: GameEvent[] = [];
