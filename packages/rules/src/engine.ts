@@ -1,3 +1,11 @@
+import {
+  getAssemblyDestinationSlot,
+  getAssemblyTurnStartCleanupPartIds,
+  getMissingUpgradedPartTypes,
+  hasAssemblyCarAvailable,
+  isPlayerAssemblyPart,
+  previewAssemblyTurnStartCleanup,
+} from './assembly.js';
 import type { GameCommand } from './commands.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import { getGameRules } from './content.js';
@@ -12,7 +20,12 @@ import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './invariants.js';
-import { getPlayerParts, getRecyclingParts, getWarehouseParts } from './inventory.js';
+import {
+  getAssemblyParts,
+  getPlayerParts,
+  getRecyclingParts,
+  getWarehouseParts,
+} from './inventory.js';
 import {
   getMaximumCollectableQuantity,
   getPartCollection,
@@ -195,6 +208,53 @@ function takePartsVoucherErrors(
   return errors;
 }
 
+function provideAssemblyPartErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'PROVIDE_ASSEMBLY_PART' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const player = getPlayer(state, command.actorId);
+  if (player.currentDepartment !== 'ASSEMBLY') errors.push('NOT_IN_ASSEMBLY');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+
+  const preparedState = previewAssemblyTurnStartCleanup(state, command.actorId);
+  const graph = preparedState.content.assemblyGraph.models[command.model];
+  if (!graph) {
+    errors.push('ASSEMBLY_MODEL_DEFINITION_MISSING');
+    return errors;
+  }
+
+  if (!isPlayerAssemblyPart(preparedState, command.actorId, command.partId)) {
+    errors.push('ASSEMBLY_PART_NOT_OWNED');
+  }
+  const part = preparedState.content.parts[command.partId];
+  if (!part) errors.push('ASSEMBLY_PART_DEFINITION_MISSING');
+
+  if (!hasAvailableShift(preparedState, command.actorId)) errors.push('INSUFFICIENT_SHIFTS');
+  if (!hasAssemblyCarAvailable(preparedState, command.model)) {
+    errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
+  }
+  if (getAssemblyDestinationSlot(preparedState, command.model) === null) {
+    errors.push('ASSEMBLY_SPACES_FULL');
+  }
+
+  if (part) {
+    const presentTypes = new Set(
+      getAssemblyParts(preparedState, command.model)
+        .map((partId) => preparedState.content.parts[partId]?.type)
+        .filter((partType) => partType !== undefined),
+    );
+    if (presentTypes.has(part.type)) errors.push('ASSEMBLY_PART_TYPE_ALREADY_PRESENT');
+
+    const missingUpgraded = getMissingUpgradedPartTypes(preparedState, command.model);
+    if (missingUpgraded.length > 0 && !missingUpgraded.includes(part.type)) {
+      errors.push('ASSEMBLY_UPGRADED_PARTS_REQUIRED_FIRST');
+    }
+  }
+
+  return errors;
+}
+
 function recyclingSwapErrors(
   state: GameState,
   command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
@@ -245,6 +305,32 @@ function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCo
   return commands;
 }
 
+function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (
+    state.phase !== 'WORK' ||
+    state.activeActorId !== playerId ||
+    player?.currentDepartment !== 'ASSEMBLY' ||
+    state.activeDepartmentAction !== null
+  ) {
+    return [];
+  }
+
+  const commands: GameCommand[] = [];
+  for (const model of state.content.models) {
+    for (const partId of getPlayerParts(state, playerId)) {
+      const command: GameCommand = {
+        type: 'PROVIDE_ASSEMBLY_PART',
+        actorId: playerId,
+        model,
+        partId,
+      };
+      if (provideAssemblyPartErrors(state, command).length === 0) commands.push(command);
+    }
+  }
+  return commands;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -290,6 +376,7 @@ export function getLegalCommands(
     const commands: GameCommand[] = [
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
+      ...getLegalAssemblyCommands(state, playerId),
     ];
     if (startDesignSelectionErrors(state, playerId).length === 0) {
       commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
@@ -358,6 +445,8 @@ function validateCommand(
       return issueKanbanOrderErrors(state, command);
     case 'TAKE_PARTS_VOUCHER':
       return takePartsVoucherErrors(state, command.actorId);
+    case 'PROVIDE_ASSEMBLY_PART':
+      return provideAssemblyPartErrors(state, command);
     case 'SWAP_RECYCLING_PART':
       return recyclingSwapErrors(state, command);
     case 'FINISH_WORK':
@@ -477,6 +566,22 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           shiftCost: getGameRules(state.content).logisticsVoucherShiftCost,
         },
       ];
+    case 'PROVIDE_ASSEMBLY_PART': {
+      const destinationSlot = getAssemblyDestinationSlot(state, command.model);
+      if (destinationSlot === null) {
+        throw new Error('Validated Assembly part delivery has no destination slot');
+      }
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'ASSEMBLY_PART_PROVIDED',
+          playerId: command.actorId,
+          model: command.model,
+          partId: command.partId,
+          destinationSlot,
+        },
+      ];
+    }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
         state,
@@ -517,16 +622,36 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
   }
 }
 
+function getAssemblyCleanupEvent(state: GameState, command: GameCommand): GameEvent | null {
+  const partIds = getAssemblyTurnStartCleanupPartIds(state, command.actorId);
+  if (partIds.length === 0) return null;
+  return {
+    id: makeId('event', state.eventIndex),
+    type: 'ASSEMBLY_SPACES_CLEARED',
+    playerId: command.actorId,
+    partIds,
+  };
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const errors = validateCommand(state, command);
   if (errors.length > 0) {
     return { status: 'REJECTED', state, errors };
   }
 
-  const events = resolveCommand(state, command);
-  const nextState = events.reduce<GameState>(
+  const events: GameEvent[] = [];
+  let preparedState = state;
+  const cleanupEvent = getAssemblyCleanupEvent(state, command);
+  if (cleanupEvent !== null) {
+    events.push(cleanupEvent);
+    preparedState = reduceEvent(preparedState, cleanupEvent);
+  }
+
+  const commandEvents = resolveCommand(preparedState, command);
+  events.push(...commandEvents);
+  const nextState = commandEvents.reduce<GameState>(
     (currentState, event) => reduceEvent(currentState, event),
-    state,
+    preparedState,
   );
   assertInvariants(nextState);
   return { status: 'ACCEPTED', state: nextState, events };

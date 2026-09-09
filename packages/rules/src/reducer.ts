@@ -178,6 +178,36 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ],
         eventIndex: state.eventIndex + 1,
       };
+    case 'ASSEMBLY_SPACES_CLEARED': {
+      const parts = { ...state.board.parts };
+      for (const partId of event.partIds) parts[partId] = { kind: 'SUPPLY' };
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'ASSEMBLY_PART_PROVIDED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.partId]: {
+              kind: 'BOARD',
+              area: `assembly:${event.model}`,
+              slot: event.destinationSlot,
+            },
+          },
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,

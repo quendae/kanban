@@ -1,4 +1,4 @@
-import type { KanbanOrderOrientation } from './content.js';
+import type { KanbanOrderOrientation, ModelId } from './content.js';
 import type { DesignMove } from './design.js';
 import type { DesignId, EventId, KanbanOrderId, PartId, PlayerId } from './ids.js';
 import type { WarehousePartMove } from './logistics.js';
@@ -58,6 +58,20 @@ export type GameEvent =
       readonly type: 'PARTS_VOUCHER_TAKEN';
       readonly playerId: PlayerId;
       readonly shiftCost: 0 | 1;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_SPACES_CLEARED';
+      readonly playerId: PlayerId;
+      readonly partIds: readonly PartId[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_PART_PROVIDED';
+      readonly playerId: PlayerId;
+      readonly model: ModelId;
+      readonly partId: PartId;
+      readonly destinationSlot: number;
     }
   | {
       readonly id: EventId;

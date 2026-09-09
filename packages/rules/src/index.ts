@@ -1,3 +1,4 @@
+export * from './assembly.js';
 export * from './commands.js';
 export * from './constants.js';
 export * from './content.js';
