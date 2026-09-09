@@ -1,9 +1,11 @@
 import type { GameContent, PartTypeId } from './content.js';
 import type { Department, GamePhase, PlayerCount, RulesetId } from './enums.js';
 import type {
+  AwardPlaqueId,
   CarId,
   DemandId,
   DesignId,
+  FactoryGoalId,
   KanbanOrderId,
   PartId,
   PlayerId,
@@ -12,6 +14,7 @@ import type { RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
 export type PlayerKind = 'HUMAN' | 'BOT';
+export type MicromanageDepartment = Exclude<Department, 'ADMINISTRATION'>;
 
 export interface PlayerState {
   readonly id: PlayerId;
@@ -27,11 +30,17 @@ export interface PlayerState {
   readonly books: number;
   readonly vouchers: number;
   readonly genericRedSeats: number;
+  readonly conferenceSeatsFaceUp: number;
+  readonly conferenceSeatsFaceDown: number;
   readonly partCapacity: number;
   readonly designCapacity: number;
   readonly garageCapacity: number;
   readonly doubleUpgradeUsed: boolean;
   readonly certifications: readonly Department[];
+  readonly certificationPosition: number;
+  readonly training: Readonly<Record<Department, number>>;
+  readonly expertDepartments: readonly Department[];
+  readonly micromanagedDepartment: MicromanageDepartment | null;
   readonly kanbanOrders: readonly KanbanOrderId[];
   readonly kanbanOrderIssuedToday: boolean;
   readonly logisticsVoucherTakenToday: boolean;
@@ -66,6 +75,12 @@ export interface DesignUpgradeState {
   readonly doubleUpgrade: boolean;
 }
 
+export interface ActiveFactoryGoalState {
+  readonly goalId: FactoryGoalId;
+  readonly seatsRemaining: number;
+  readonly claimedBy: readonly PlayerId[];
+}
+
 export interface BoardState {
   readonly cars: Readonly<Partial<Record<CarId, EntityLocation>>>;
   readonly parts: Readonly<Partial<Record<PartId, EntityLocation>>>;
@@ -78,6 +93,10 @@ export interface BoardState {
   readonly paceCarPosition: number;
   readonly nextMeetingThreshold: number;
   readonly doubleUpgradedPartTypes: Readonly<Partial<Record<PartTypeId, PlayerId>>>;
+  readonly trainingTieOrder: Readonly<Record<Department, readonly PlayerId[]>>;
+  readonly expertSeatAvailable: Readonly<Record<Department, boolean>>;
+  readonly awardPlaquePools: Readonly<Record<Department, readonly AwardPlaqueId[]>>;
+  readonly factoryGoals: readonly ActiveFactoryGoalState[];
 }
 
 export type PendingRewardType = 'BANKED_SHIFT' | 'BOOK' | 'VOUCHER';
