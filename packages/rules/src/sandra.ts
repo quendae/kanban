@@ -7,11 +7,12 @@ import {
   getPlayerParts,
   getWarehouseParts,
 } from './inventory.js';
-import type { GameState } from './model.js';
+import type { EntityLocation, GameState } from './model.js';
 import { shuffle, type RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
 export type SandraMode = 'NICE' | 'MEAN';
+type BoardLocation = Extract<EntityLocation, { readonly kind: 'BOARD' }>;
 
 export interface SandraAuditResult {
   readonly playerId: PlayerId;
@@ -169,8 +170,10 @@ function planTestingTask(state: GameState): SandraDepartmentTask {
 }
 
 function planAssemblyTask(state: GameState): SandraDepartmentTask {
-  const returnedPartIds = (Object.entries(state.board.parts) as [PartId, GameState['board']['parts'][PartId]][])
-    .filter((entry) => entry[1]?.kind === 'BOARD' && entry[1].area.startsWith('assembly:'))
+  const returnedPartIds = (Object.entries(state.board.parts) as [PartId, EntityLocation | undefined][])
+    .filter((entry): entry is [PartId, BoardLocation] =>
+      entry[1]?.kind === 'BOARD' && entry[1].area.startsWith('assembly:'),
+    )
     .map(([partId]) => partId)
     .sort((a, b) => a.localeCompare(b));
   return { kind: 'ASSEMBLY', returnedPartIds };
@@ -184,16 +187,16 @@ function planLogisticsTask(state: GameState): SandraDepartmentTask {
 }
 
 function rightmostVisibleDesigns(state: GameState): DesignId[] {
-  return (Object.entries(state.board.designs) as [DesignId, GameState['board']['designs'][DesignId]][])
-    .filter((entry) =>
+  return (Object.entries(state.board.designs) as [DesignId, EntityLocation | undefined][])
+    .filter((entry): entry is [DesignId, BoardLocation] =>
       entry[1]?.kind === 'BOARD' &&
       (entry[1].area === 'design-row:0' || entry[1].area === 'design-row:1') &&
       entry[1].slot >= 2,
     )
     .sort((a, b) => {
-      const slotDifference = b[1]!.slot - a[1]!.slot;
+      const slotDifference = b[1].slot - a[1].slot;
       if (slotDifference !== 0) return slotDifference;
-      return a[1]!.area.localeCompare(b[1]!.area);
+      return a[1].area.localeCompare(b[1].area);
     })
     .slice(0, 4)
     .map(([designId]) => designId);
