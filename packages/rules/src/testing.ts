@@ -24,6 +24,12 @@ export interface ClaimDesignMove {
   readonly location: EntityLocation;
 }
 
+export interface PaceCarMeetingTrigger {
+  readonly previousPaceCarPosition: number;
+  readonly newPaceCarPosition: number;
+  readonly threshold: number;
+}
+
 export type ClaimCarsPlan =
   | {
       readonly ok: true;
@@ -54,6 +60,18 @@ export function getClaimCostSnapshot(
     if (cost !== undefined) snapshot[carId] = cost;
   });
   return snapshot;
+}
+
+export function getPaceCarMeetingTrigger(
+  state: GameState,
+  newPaceCarPosition: number,
+): PaceCarMeetingTrigger | null {
+  const previousPaceCarPosition = state.board.paceCarPosition;
+  const threshold = state.board.nextMeetingThreshold;
+  if (state.meetingScheduled) return null;
+  if (previousPaceCarPosition >= threshold) return null;
+  if (newPaceCarPosition < threshold) return null;
+  return { previousPaceCarPosition, newPaceCarPosition, threshold };
 }
 
 function getGarageOccupants(
