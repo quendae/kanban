@@ -1,6 +1,7 @@
 import type { CarMove } from './assembly.js';
 import type { GarageBenefit, KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
 import type { DesignMove } from './design.js';
+import type { Department } from './enums.js';
 import type {
   DemandId,
   DesignId,
@@ -150,6 +151,26 @@ export type GameEvent =
       readonly incomingPartId: PartId;
       readonly playerSlot: number;
       readonly recyclingSlot: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'TRAINING_ADVANCED';
+      readonly playerId: PlayerId;
+      readonly department: Department;
+      readonly fromLevel: number;
+      readonly toLevel: number;
+      readonly source: 'SHIFT' | 'BOOK';
+      readonly shiftCost: 0 | 1;
+      readonly bookCost: 0 | 1;
+      readonly tieOrder: readonly PlayerId[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'PLAYER_CERTIFIED';
+      readonly playerId: PlayerId;
+      readonly department: Department;
+      readonly certificationPosition: number;
+      readonly administrationSeatUnlocked: boolean;
     }
   | {
       readonly id: EventId;
