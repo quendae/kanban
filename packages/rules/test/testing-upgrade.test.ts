@@ -31,18 +31,8 @@ function upgradeContent(): GameContent {
       'part:2': { id: 'part:2', type: 'part-type:0' },
     },
     designs: {
-      'design:0': {
-        id: 'design:0',
-        model: 'model:0',
-        partType: 'part-type:0',
-        oldestBonus: null,
-      },
-      'design:1': {
-        id: 'design:1',
-        model: 'model:1',
-        partType: 'part-type:1',
-        oldestBonus: null,
-      },
+      'design:0': { id: 'design:0', model: 'model:0', partType: 'part-type:0', oldestBonus: null },
+      'design:1': { id: 'design:1', model: 'model:1', partType: 'part-type:1', oldestBonus: null },
     },
     upgradeSpaces: {
       'upgrade-space:0': {
@@ -70,6 +60,7 @@ function upgradeState(options?: {
   readonly globallyReserved?: boolean;
 }): GameState {
   const shell = createShellGame({ seed: 'testing-upgrade', playerCount: 2 });
+  const content = upgradeContent();
   const parts: Partial<Record<PartId, EntityLocation>> = {
     'part:0': { kind: 'PLAYER', playerId: 'player:0', area: 'parts', slot: 0 },
     'part:1': { kind: 'PLAYER', playerId: 'player:0', area: 'parts', slot: 1 },
@@ -90,7 +81,7 @@ function upgradeState(options?: {
 
   return {
     ...shell,
-    content: upgradeContent(),
+    content,
     phase: 'WORK',
     activeActorId: 'player:0',
     workOrder: ['player:0', 'player:1'],
@@ -102,6 +93,10 @@ function upgradeState(options?: {
         currentWorkstation: 'A_RIGHT',
         baseShiftsToday: 3,
         certifications: options?.certified ? ['TESTING_INNOVATION'] : [],
+        training: {
+          ...shell.players[0]!.training,
+          TESTING_INNOVATION: options?.certified ? content.trainingRules.certificationLevel : 0,
+        },
         doubleUpgradeUsed: options?.doubleUpgradeUsed ?? false,
       },
       {
@@ -116,14 +111,9 @@ function upgradeState(options?: {
       cars,
       parts,
       designs,
-      partValues: {
-        ...shell.board.partValues,
-        'part-type:0': options?.partValue ?? 4,
-      },
+      partValues: { ...shell.board.partValues, 'part-type:0': options?.partValue ?? 4 },
       designUpgrades: {},
-      doubleUpgradedPartTypes: options?.globallyReserved
-        ? { 'part-type:0': 'player:1' }
-        : {},
+      doubleUpgradedPartTypes: options?.globallyReserved ? { 'part-type:0': 'player:1' } : {},
     },
   };
 }
@@ -140,56 +130,34 @@ const normalUpgrade = {
 describe('Testing & Innovation — Design upgrades', () => {
   it('spends 1 Shift, moves the matching physical Part, raises value by one and awards 2 PP', () => {
     const result = applyCommand(upgradeState(), normalUpgrade);
-
     expect(result.status).toBe('ACCEPTED');
     if (result.status !== 'ACCEPTED') return;
     expect(result.state.players[0]?.shiftsSpentToday).toBe(1);
     expect(result.state.players[0]?.pp).toBe(2);
     expect(result.state.board.partValues['part-type:0']).toBe(5);
-    expect(result.state.board.parts['part:0']).toEqual({
-      kind: 'BOARD',
-      area: 'upgrade-space:0',
-      slot: 0,
-    });
-    expect(result.state.board.designUpgrades['design:0']).toEqual({
-      partType: 'part-type:0',
-      doubleUpgrade: false,
-    });
-    expect(result.events).toContainEqual(
-      expect.objectContaining({
-        type: 'DESIGN_UPGRADED',
-        benefit: { kind: 'BOOK', amount: 1 },
-        previousPartValue: 4,
-        newPartValue: 5,
-        ppAwarded: 2,
-      }),
-    );
+    expect(result.state.board.parts['part:0']).toEqual({ kind: 'BOARD', area: 'upgrade-space:0', slot: 0 });
+    expect(result.state.board.designUpgrades['design:0']).toEqual({ partType: 'part-type:0', doubleUpgrade: false });
+    expect(result.events).toContainEqual(expect.objectContaining({
+      type: 'DESIGN_UPGRADED', benefit: { kind: 'BOOK', amount: 1 }, previousPartValue: 4, newPartValue: 5, ppAwarded: 2,
+    }));
   });
 
   it('caps Part value at 6 while preserving the normal +2 PP reward', () => {
     const result = applyCommand(upgradeState({ partValue: 6 }), normalUpgrade);
     expect(result.status).toBe('ACCEPTED');
     if (result.status !== 'ACCEPTED') return;
-
     expect(result.state.board.partValues['part-type:0']).toBe(6);
     expect(result.state.players[0]?.pp).toBe(2);
   });
 
   it('rejects mismatched resources and an occupied Upgrade Space', () => {
-    const mismatch = applyCommand(upgradeState(), {
-      ...normalUpgrade,
-      partId: 'part:1',
-    });
+    const mismatch = applyCommand(upgradeState(), { ...normalUpgrade, partId: 'part:1' });
     expect(mismatch.status).toBe('REJECTED');
-    if (mismatch.status === 'REJECTED') {
-      expect(mismatch.errors).toContain('UPGRADE_PART_TYPE_MISMATCH');
-    }
+    if (mismatch.status === 'REJECTED') expect(mismatch.errors).toContain('UPGRADE_PART_TYPE_MISMATCH');
 
     const occupied = applyCommand(upgradeState({ occupiedSpace: true }), normalUpgrade);
     expect(occupied.status).toBe('REJECTED');
-    if (occupied.status === 'REJECTED') {
-      expect(occupied.errors).toContain('UPGRADE_SPACE_OCCUPIED');
-    }
+    if (occupied.status === 'REJECTED') expect(occupied.errors).toContain('UPGRADE_SPACE_OCCUPIED');
   });
 
   it('derives Tested Design from an upgraded owned Design plus a same-model garage car', () => {
@@ -209,9 +177,7 @@ describe('Testing & Innovation — Design upgrades', () => {
     const command = { ...normalUpgrade, doubleUpgrade: true };
     const uncertified = applyCommand(upgradeState(), command);
     expect(uncertified.status).toBe('REJECTED');
-    if (uncertified.status === 'REJECTED') {
-      expect(uncertified.errors).toContain('DOUBLE_UPGRADE_REQUIRES_CERTIFICATION');
-    }
+    if (uncertified.status === 'REJECTED') expect(uncertified.errors).toContain('DOUBLE_UPGRADE_REQUIRES_CERTIFICATION');
 
     const result = applyCommand(upgradeState({ certified: true, partValue: 3 }), command);
     expect(result.status).toBe('ACCEPTED');
@@ -220,31 +186,18 @@ describe('Testing & Innovation — Design upgrades', () => {
     expect(result.state.players[0]?.pp).toBe(7);
     expect(result.state.players[0]?.doubleUpgradeUsed).toBe(true);
     expect(result.state.board.doubleUpgradedPartTypes['part-type:0']).toBe('player:0');
-    expect(result.state.board.designUpgrades['design:0']).toEqual({
-      partType: 'part-type:0',
-      doubleUpgrade: true,
-    });
+    expect(result.state.board.designUpgrades['design:0']).toEqual({ partType: 'part-type:0', doubleUpgrade: true });
   });
 
   it('allows only one double upgrade per player and globally reserves its Part Type', () => {
     const command = { ...normalUpgrade, doubleUpgrade: true };
 
-    const alreadyUsed = applyCommand(
-      upgradeState({ certified: true, doubleUpgradeUsed: true }),
-      command,
-    );
+    const alreadyUsed = applyCommand(upgradeState({ certified: true, doubleUpgradeUsed: true }), command);
     expect(alreadyUsed.status).toBe('REJECTED');
-    if (alreadyUsed.status === 'REJECTED') {
-      expect(alreadyUsed.errors).toContain('DOUBLE_UPGRADE_ALREADY_USED');
-    }
+    if (alreadyUsed.status === 'REJECTED') expect(alreadyUsed.errors).toContain('DOUBLE_UPGRADE_ALREADY_USED');
 
-    const reserved = applyCommand(
-      upgradeState({ certified: true, globallyReserved: true }),
-      command,
-    );
+    const reserved = applyCommand(upgradeState({ certified: true, globallyReserved: true }), command);
     expect(reserved.status).toBe('REJECTED');
-    if (reserved.status === 'REJECTED') {
-      expect(reserved.errors).toContain('DOUBLE_UPGRADE_PART_TYPE_RESERVED');
-    }
+    if (reserved.status === 'REJECTED') expect(reserved.errors).toContain('DOUBLE_UPGRADE_PART_TYPE_RESERVED');
   });
 });
