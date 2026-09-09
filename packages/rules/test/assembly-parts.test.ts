@@ -177,7 +177,7 @@ describe('Assembly — turn-start cleanup and Provide Needed Part', () => {
     }
   });
 
-  it('treats a real Testing design upgrade as the Assembly upgraded-part requirement', () => {
+  it('treats a real Testing design upgrade in a universal Upgrade Space as the Assembly requirement', () => {
     const base = workingAssemblyState();
     const state: GameState = {
       ...base,
@@ -194,7 +194,7 @@ describe('Assembly — turn-start cleanup and Provide Needed Part', () => {
         upgradeSpaces: {
           'upgrade-space:0': {
             id: 'upgrade-space:0',
-            model: 'model:0',
+            model: null,
             partType: 'part-type:2',
             benefit: { kind: 'NONE' },
           },
