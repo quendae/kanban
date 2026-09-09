@@ -41,14 +41,7 @@ function orderContent(): GameContent {
     kanbanOrders: {
       'kanban-order:0': {
         id: 'kanban-order:0',
-        symbols: [
-          'part-type:0',
-          'part-type:1',
-          'part-type:2',
-          'part-type:0',
-          'part-type:3',
-          'part-type:4',
-        ],
+        symbols: ['part-type:0', 'part-type:1', 'part-type:2', 'part-type:0', 'part-type:3', 'part-type:4'],
         refillByOrientation: {
           LEFT_FOUR: ['part-type:0', 'part-type:1', 'part-type:2', 'part-type:0'],
           RIGHT_FOUR: ['part-type:2', 'part-type:0', 'part-type:3', 'part-type:4'],
@@ -56,14 +49,7 @@ function orderContent(): GameContent {
       },
       'kanban-order:1': {
         id: 'kanban-order:1',
-        symbols: [
-          'part-type:0',
-          'part-type:1',
-          'part-type:2',
-          'part-type:3',
-          'part-type:4',
-          'part-type:5',
-        ],
+        symbols: ['part-type:0', 'part-type:1', 'part-type:2', 'part-type:3', 'part-type:4', 'part-type:5'],
         refillByOrientation: {
           LEFT_FOUR: ['part-type:0', 'part-type:1', 'part-type:2', 'part-type:3'],
           RIGHT_FOUR: ['part-type:2', 'part-type:3', 'part-type:4', 'part-type:5'],
@@ -71,14 +57,7 @@ function orderContent(): GameContent {
       },
       'kanban-order:2': {
         id: 'kanban-order:2',
-        symbols: [
-          'part-type:5',
-          'part-type:4',
-          'part-type:3',
-          'part-type:2',
-          'part-type:1',
-          'part-type:0',
-        ],
+        symbols: ['part-type:5', 'part-type:4', 'part-type:3', 'part-type:2', 'part-type:1', 'part-type:0'],
         refillByOrientation: {
           LEFT_FOUR: ['part-type:5', 'part-type:4', 'part-type:3', 'part-type:2'],
           RIGHT_FOUR: ['part-type:3', 'part-type:2', 'part-type:1', 'part-type:0'],
@@ -90,6 +69,7 @@ function orderContent(): GameContent {
 
 function workingOrderState(certified = false): GameState {
   const shell = createShellGame({ seed: 'kanban-order', playerCount: 2 });
+  const content = orderContent();
   const parts: Partial<Record<PartId, EntityLocation>> = {
     'part:0': { kind: 'SUPPLY' },
     'part:1': { kind: 'SUPPLY' },
@@ -103,7 +83,7 @@ function workingOrderState(certified = false): GameState {
 
   return {
     ...shell,
-    content: orderContent(),
+    content,
     phase: 'WORK',
     activeActorId: 'player:0',
     workOrder: ['player:0', 'player:1'],
@@ -117,6 +97,10 @@ function workingOrderState(certified = false): GameState {
         baseShiftsToday: 2,
         bankedShifts: 2,
         certifications: certified ? ['LOGISTICS'] : [],
+        training: {
+          ...shell.players[0]!.training,
+          LOGISTICS: certified ? content.trainingRules.certificationLevel : 0,
+        },
         kanbanOrders: ['kanban-order:0', 'kanban-order:1'],
       },
       {
@@ -150,11 +134,7 @@ describe('Logistics — Issue Kanban Order', () => {
       bankedShifts: 2,
       kanbanOrders: ['kanban-order:1', 'kanban-order:2'],
     });
-    expect(result.state.pendingRewards).toContainEqual({
-      playerId: 'player:0',
-      type: 'BANKED_SHIFT',
-      amount: 1,
-    });
+    expect(result.state.pendingRewards).toContainEqual({ playerId: 'player:0', type: 'BANKED_SHIFT', amount: 1 });
     expect(getMaximumUsableShifts(result.state, 'player:0')).toBe(4);
     expect(getWarehouseParts(result.state, 'part-type:0')).toEqual(['part:0', 'part:1']);
     expect(getWarehouseParts(result.state, 'part-type:1')).toEqual(['part:3']);
@@ -164,28 +144,13 @@ describe('Logistics — Issue Kanban Order', () => {
 
   it('rejects an order outside the hand and a second order in the same day', () => {
     const state = workingOrderState();
-    const notInHand = applyCommand(state, {
-      type: 'ISSUE_KANBAN_ORDER',
-      actorId: 'player:0',
-      orderId: 'kanban-order:2',
-      orientation: 'LEFT_FOUR',
-    });
+    const notInHand = applyCommand(state, { type: 'ISSUE_KANBAN_ORDER', actorId: 'player:0', orderId: 'kanban-order:2', orientation: 'LEFT_FOUR' });
     expect(notInHand.status).toBe('REJECTED');
     if (notInHand.status === 'REJECTED') expect(notInHand.errors).toContain('KANBAN_ORDER_NOT_IN_HAND');
 
-    const first = applyCommand(state, {
-      type: 'ISSUE_KANBAN_ORDER',
-      actorId: 'player:0',
-      orderId: 'kanban-order:0',
-      orientation: 'RIGHT_FOUR',
-    });
+    const first = applyCommand(state, { type: 'ISSUE_KANBAN_ORDER', actorId: 'player:0', orderId: 'kanban-order:0', orientation: 'RIGHT_FOUR' });
     if (first.status !== 'ACCEPTED') throw new Error(first.errors.join(','));
-    const second = applyCommand(first.state, {
-      type: 'ISSUE_KANBAN_ORDER',
-      actorId: 'player:0',
-      orderId: 'kanban-order:1',
-      orientation: 'LEFT_FOUR',
-    });
+    const second = applyCommand(first.state, { type: 'ISSUE_KANBAN_ORDER', actorId: 'player:0', orderId: 'kanban-order:1', orientation: 'LEFT_FOUR' });
     expect(second.status).toBe('REJECTED');
     if (second.status === 'REJECTED') expect(second.errors).toContain('KANBAN_ORDER_ALREADY_ISSUED');
   });
@@ -203,13 +168,7 @@ describe('Logistics — Issue Kanban Order', () => {
         },
       },
     };
-    const result = applyCommand(state, {
-      type: 'ISSUE_KANBAN_ORDER',
-      actorId: 'player:0',
-      orderId: 'kanban-order:0',
-      orientation: 'LEFT_FOUR',
-    });
-
+    const result = applyCommand(state, { type: 'ISSUE_KANBAN_ORDER', actorId: 'player:0', orderId: 'kanban-order:0', orientation: 'LEFT_FOUR' });
     expect(result.status).toBe('ACCEPTED');
     if (result.status !== 'ACCEPTED') return;
     expect(getWarehouseParts(result.state, 'part-type:0')).toEqual(['part:0']);
@@ -219,49 +178,28 @@ describe('Logistics — Issue Kanban Order', () => {
 describe('Logistics — certified Parts Voucher', () => {
   it('uses the configured 1 Shift fixture cost, is once per day and the Voucher remains pending', () => {
     const state = workingOrderState(true);
-    const result = applyCommand(state, {
-      type: 'TAKE_PARTS_VOUCHER',
-      actorId: 'player:0',
-    });
+    const result = applyCommand(state, { type: 'TAKE_PARTS_VOUCHER', actorId: 'player:0' });
 
     expect(result.status).toBe('ACCEPTED');
     if (result.status !== 'ACCEPTED') return;
     expect(result.events.map((event) => event.type)).toEqual(['PARTS_VOUCHER_TAKEN']);
-    expect(result.state.players[0]).toMatchObject({
-      shiftsSpentToday: 1,
-      logisticsVoucherTakenToday: true,
-      vouchers: 0,
-    });
-    expect(result.state.pendingRewards).toContainEqual({
-      playerId: 'player:0',
-      type: 'VOUCHER',
-      amount: 1,
-    });
+    expect(result.state.players[0]).toMatchObject({ shiftsSpentToday: 1, logisticsVoucherTakenToday: true, vouchers: 0 });
+    expect(result.state.pendingRewards).toContainEqual({ playerId: 'player:0', type: 'VOUCHER', amount: 1 });
 
-    const twice = applyCommand(result.state, {
-      type: 'TAKE_PARTS_VOUCHER',
-      actorId: 'player:0',
-    });
+    const twice = applyCommand(result.state, { type: 'TAKE_PARTS_VOUCHER', actorId: 'player:0' });
     expect(twice.status).toBe('REJECTED');
     if (twice.status === 'REJECTED') expect(twice.errors).toContain('LOGISTICS_VOUCHER_ALREADY_TAKEN');
   });
 
   it('requires Logistics certification and an available Shift when configured cost is 1', () => {
-    const notCertified = applyCommand(workingOrderState(false), {
-      type: 'TAKE_PARTS_VOUCHER',
-      actorId: 'player:0',
-    });
+    const notCertified = applyCommand(workingOrderState(false), { type: 'TAKE_PARTS_VOUCHER', actorId: 'player:0' });
     expect(notCertified.status).toBe('REJECTED');
-    if (notCertified.status === 'REJECTED') {
-      expect(notCertified.errors).toContain('LOGISTICS_VOUCHER_REQUIRES_CERTIFICATION');
-    }
+    if (notCertified.status === 'REJECTED') expect(notCertified.errors).toContain('LOGISTICS_VOUCHER_REQUIRES_CERTIFICATION');
 
     const base = workingOrderState(true);
     const noShift: GameState = {
       ...base,
-      players: base.players.map((player) =>
-        player.id === 'player:0' ? { ...player, shiftsSpentToday: 4 } : player,
-      ),
+      players: base.players.map((player) => player.id === 'player:0' ? { ...player, shiftsSpentToday: 4 } : player),
     };
     const result = applyCommand(noShift, { type: 'TAKE_PARTS_VOUCHER', actorId: 'player:0' });
     expect(result.status).toBe('REJECTED');
