@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_GAME_CONTENT,
   MODEL_IDS,
   PART_TYPE_IDS,
   createShellGame,
@@ -15,6 +16,7 @@ import {
 
 function invariantContent(): GameContent {
   return {
+    ...EMPTY_GAME_CONTENT,
     id: 'assembly-testing-invariant-fixture',
     authoritative: false,
     models: MODEL_IDS,
