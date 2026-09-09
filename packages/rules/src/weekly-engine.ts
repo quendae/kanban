@@ -2,7 +2,7 @@ import type { GameCommand } from './commands.js';
 import { applyCommand as applyBaseCommand } from './engine.js';
 import type { RuleErrorCode } from './errors.js';
 import { makeId } from './ids.js';
-import { assertInvariants } from './invariants.js';
+import { assertInvariants } from './m4-invariants.js';
 import type { GameState } from './model.js';
 import type { GameEvent as BaseGameEvent } from './events.js';
 import { reduceEvent } from './weekly-reducer.js';
