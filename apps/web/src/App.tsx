@@ -98,6 +98,8 @@ function commandLabel(state: GameState, command: GameCommand): string {
       const cost = getGameRules(state.content).logisticsVoucherShiftCost;
       return `Take Parts Voucher · ${shiftLabel(cost)}`;
     }
+    case 'PROVIDE_ASSEMBLY_PART':
+      return `Provide ${partLabel(state, command.partId)} → ${command.model} · 1 Shift`;
     case 'SWAP_RECYCLING_PART':
       return `Recycle ${command.outgoingPartId} ↔ ${command.incomingPartId} · 0 Shifts`;
     case 'FINISH_WORK':
