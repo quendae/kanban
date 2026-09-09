@@ -1,4 +1,5 @@
 import type { KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
+import type { Department } from './enums.js';
 import type {
   AssemblyNodeId,
   CarId,
@@ -81,6 +82,12 @@ export type GameCommand =
       readonly actorId: PlayerId;
       readonly outgoingPartId: PartId;
       readonly incomingPartId: PartId;
+    }
+  | {
+      readonly type: 'TRAIN_DEPARTMENT';
+      readonly actorId: PlayerId;
+      readonly department: Department;
+      readonly source: 'SHIFT' | 'BOOK';
     }
   | {
       readonly type: 'FINISH_WORK';
