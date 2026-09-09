@@ -1,6 +1,7 @@
 import type { CarMove } from './assembly.js';
 import type {
   AwardPlaqueReward,
+  FactoryGoalCategory,
   GarageBenefit,
   KanbanOrderOrientation,
   ModelId,
@@ -8,11 +9,13 @@ import type {
 } from './content.js';
 import type { DesignMove } from './design.js';
 import type { Department } from './enums.js';
+import type { FactoryGoalSeatOutcome } from './factory-goals.js';
 import type {
   AwardPlaqueId,
   DemandId,
   DesignId,
   EventId,
+  FactoryGoalId,
   KanbanOrderId,
   PartId,
   PlayerId,
@@ -199,6 +202,22 @@ export type GameEvent =
       readonly department: Department;
       readonly plaqueId: AwardPlaqueId;
       readonly reward: AwardPlaqueReward;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'FACTORY_GOAL_ACHIEVED';
+      readonly playerId: PlayerId;
+      readonly goalId: FactoryGoalId;
+      readonly category: FactoryGoalCategory;
+      readonly beforeMetric: number;
+      readonly afterMetric: number;
+      readonly threshold: number;
+      readonly seatOutcome: FactoryGoalSeatOutcome;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'RED_SEAT_CONVERTED';
+      readonly playerId: PlayerId;
     }
   | {
       readonly id: EventId;
