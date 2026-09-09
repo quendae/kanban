@@ -111,6 +111,8 @@ function commandLabel(state: GameState, command: GameCommand): string {
       return `Train ${command.department} · ${command.source === 'BOOK' ? '1 Book' : '1 Shift'}`;
     case 'CHOOSE_AWARD_PLAQUE':
       return `Choose ${command.plaqueId} · ${command.department}`;
+    case 'CONVERT_RED_SEAT':
+      return 'Convert Red Seat · 0 Shifts';
     case 'FINISH_WORK':
       return 'Finish work';
   }
