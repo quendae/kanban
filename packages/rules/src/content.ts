@@ -141,6 +141,7 @@ export interface GameContent {
   readonly kanbanOrders: Readonly<Partial<Record<KanbanOrderId, KanbanOrderDefinition>>>;
   readonly demands: Readonly<Partial<Record<DemandId, DemandDefinition>>>;
   readonly assemblyGraph: AssemblyGraphDefinition;
+  readonly garageBenefits: readonly GarageBenefit[];
   readonly upgradeSpaces: Readonly<Partial<Record<UpgradeSpaceId, UpgradeSpaceDefinition>>>;
   readonly testingRules: TestingRulesConfig;
 }
@@ -161,6 +162,7 @@ export const EMPTY_GAME_CONTENT: GameContent = {
   kanbanOrders: {},
   demands: {},
   assemblyGraph: { models: {} },
+  garageBenefits: [],
   upgradeSpaces: {},
   testingRules: DEFAULT_TESTING_RULES,
 };
