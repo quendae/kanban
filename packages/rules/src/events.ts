@@ -1,3 +1,4 @@
+import type { CarMove } from './assembly.js';
 import type { KanbanOrderOrientation, ModelId } from './content.js';
 import type { DesignMove } from './design.js';
 import type { DesignId, EventId, KanbanOrderId, PartId, PlayerId } from './ids.js';
@@ -72,6 +73,13 @@ export type GameEvent =
       readonly model: ModelId;
       readonly partId: PartId;
       readonly destinationSlot: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_CAR_CHAIN_RESOLVED';
+      readonly playerId: PlayerId;
+      readonly moves: readonly CarMove[];
+      readonly ppAwarded: number;
     }
   | {
       readonly id: EventId;

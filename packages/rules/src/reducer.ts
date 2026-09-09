@@ -208,6 +208,20 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         ),
         eventIndex: state.eventIndex + 1,
       };
+    case 'ASSEMBLY_CAR_CHAIN_RESOLVED': {
+      const cars = { ...state.board.cars };
+      for (const move of event.moves) cars[move.carId] = move.to;
+      return {
+        ...state,
+        board: { ...state.board, cars },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, pp: player.pp + event.ppAwarded }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,

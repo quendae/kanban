@@ -1,7 +1,12 @@
 import type { ModelId, PartTypeId } from './content.js';
-import type { CarId, PartId, PlayerId } from './ids.js';
-import { getAssemblyParts, getPlayerParts, getUpgradeParts } from './inventory.js';
-import type { GameState } from './model.js';
+import type { AssemblyNodeId, CarId, PartId, PlayerId } from './ids.js';
+import {
+  getAssemblyParts,
+  getPlayerParts,
+  getTestTrackCars,
+  getUpgradeParts,
+} from './inventory.js';
+import type { EntityLocation, GameState } from './model.js';
 
 function getPartType(state: GameState, partId: PartId): PartTypeId | null {
   return state.content.parts[partId]?.type ?? null;
@@ -117,4 +122,254 @@ export function isPlayerAssemblyPart(
   partId: PartId,
 ): boolean {
   return getPlayerParts(state, playerId).includes(partId);
+}
+
+export type CarMoveReason =
+  | 'CHAIN_PUSH'
+  | 'EXIT_TO_TEST_TRACK'
+  | 'TEST_TRACK_OVERFLOW'
+  | 'TEST_TRACK_COMPACT'
+  | 'SUPPLY_REFILL';
+
+export interface CarMove {
+  readonly carId: CarId;
+  readonly from: EntityLocation;
+  readonly to: EntityLocation;
+  readonly reason: CarMoveReason;
+  readonly exitPP?: 1 | 2;
+}
+
+export type AssemblyPushFailureReason =
+  | 'GRAPH_MISSING'
+  | 'START_NODE_MISSING'
+  | 'NODE_MISSING'
+  | 'DEAD_END'
+  | 'CYCLE_DETECTED'
+  | 'CAR_NOT_AVAILABLE'
+  | 'PATH_CHOICE_REQUIRED'
+  | 'INVALID_PATH_CHOICE';
+
+export type AssemblyPushPlan =
+  | {
+      readonly ok: true;
+      readonly moves: readonly CarMove[];
+      readonly ppAwarded: number;
+    }
+  | {
+      readonly ok: false;
+      readonly reason: AssemblyPushFailureReason;
+      readonly choices?: readonly AssemblyNodeId[];
+    };
+
+function nodeArea(nodeId: AssemblyNodeId): string {
+  return `assembly-node:${nodeId}`;
+}
+
+function getCarAtNode(state: GameState, nodeId: AssemblyNodeId): CarId | null {
+  const area = nodeArea(nodeId);
+  const matches = (Object.entries(state.board.cars) as [CarId, EntityLocation | undefined][])
+    .filter(
+      (entry): entry is [CarId, EntityLocation] =>
+        entry[1] !== undefined && entry[1].kind === 'BOARD' && entry[1].area === area,
+    )
+    .map(([carId]) => carId)
+    .sort((a, b) => a.localeCompare(b));
+  return matches[0] ?? null;
+}
+
+function getSupplyCar(state: GameState, model: ModelId): CarId | null {
+  const candidates = (Object.entries(state.board.cars) as [CarId, EntityLocation | undefined][])
+    .filter(
+      (entry): entry is [CarId, EntityLocation] =>
+        entry[1]?.kind === 'SUPPLY' && state.content.cars[entry[0]]?.model === model,
+    )
+    .map(([carId]) => carId)
+    .sort((a, b) => a.localeCompare(b));
+  return candidates[0] ?? null;
+}
+
+function testTrackExitMoves(
+  state: GameState,
+  carId: CarId,
+  from: EntityLocation,
+  exitPP: 1 | 2 | undefined,
+): readonly CarMove[] {
+  const capacity = state.content.testingRules.testTrackCapacity;
+  const existing = getTestTrackCars(state);
+  if (capacity <= 0) {
+    return [{ carId, from, to: { kind: 'SUPPLY' }, reason: 'TEST_TRACK_OVERFLOW', exitPP }];
+  }
+
+  if (existing.length < capacity) {
+    return [
+      {
+        carId,
+        from,
+        to: { kind: 'BOARD', area: 'test-track', slot: existing.length },
+        reason: 'EXIT_TO_TEST_TRACK',
+        exitPP,
+      },
+    ];
+  }
+
+  const moves: CarMove[] = [];
+  const oldest = existing[0];
+  if (oldest !== undefined) {
+    const oldestLocation = state.board.cars[oldest];
+    if (oldestLocation !== undefined) {
+      moves.push({
+        carId: oldest,
+        from: oldestLocation,
+        to: { kind: 'SUPPLY' },
+        reason: 'TEST_TRACK_OVERFLOW',
+      });
+    }
+  }
+
+  existing.slice(1, capacity).forEach((trackCarId, index) => {
+    const location = state.board.cars[trackCarId];
+    if (location === undefined) return;
+    moves.push({
+      carId: trackCarId,
+      from: location,
+      to: { kind: 'BOARD', area: 'test-track', slot: index },
+      reason: 'TEST_TRACK_COMPACT',
+    });
+  });
+
+  moves.push({
+    carId,
+    from,
+    to: { kind: 'BOARD', area: 'test-track', slot: capacity - 1 },
+    reason: 'EXIT_TO_TEST_TRACK',
+    exitPP,
+  });
+  return moves;
+}
+
+export function planAssemblyPush(
+  state: GameState,
+  model: ModelId,
+  pathChoices: readonly AssemblyNodeId[],
+): AssemblyPushPlan {
+  const graph = state.content.assemblyGraph.models[model];
+  if (!graph) return { ok: false, reason: 'GRAPH_MISSING' };
+  if (!graph.nodes[graph.startNodeId]) return { ok: false, reason: 'START_NODE_MISSING' };
+
+  const moves: CarMove[] = [];
+  let ppAwarded = 0;
+  let choiceIndex = 0;
+  const visiting = new Set<AssemblyNodeId>();
+
+  function moveCarFromNode(carId: CarId, nodeId: AssemblyNodeId): AssemblyPushPlan | null {
+    if (visiting.has(nodeId)) return { ok: false, reason: 'CYCLE_DETECTED' };
+    const node = graph.nodes[nodeId];
+    if (!node) return { ok: false, reason: 'NODE_MISSING' };
+    const from = state.board.cars[carId];
+    if (!from) return { ok: false, reason: 'CAR_NOT_AVAILABLE' };
+    if (node.next.length === 0) return { ok: false, reason: 'DEAD_END' };
+
+    let edge = node.next[0];
+    if (node.next.length > 1) {
+      const requested = pathChoices[choiceIndex];
+      if (requested === undefined) {
+        return {
+          ok: false,
+          reason: 'PATH_CHOICE_REQUIRED',
+          choices: node.next.map((candidate) => candidate.to),
+        };
+      }
+      edge = node.next.find((candidate) => candidate.to === requested);
+      if (!edge) return { ok: false, reason: 'INVALID_PATH_CHOICE' };
+      choiceIndex += 1;
+    }
+    if (!edge) return { ok: false, reason: 'DEAD_END' };
+
+    const target = graph.nodes[edge.to];
+    if (!target) return { ok: false, reason: 'NODE_MISSING' };
+    if (target.kind === 'EXIT') {
+      moves.push(...testTrackExitMoves(state, carId, from, edge.exitPP));
+      ppAwarded += edge.exitPP ?? 0;
+      return null;
+    }
+
+    visiting.add(nodeId);
+    const displaced = getCarAtNode(state, edge.to);
+    if (displaced !== null) {
+      const failure = moveCarFromNode(displaced, edge.to);
+      if (failure !== null) return failure;
+    }
+    visiting.delete(nodeId);
+
+    moves.push({
+      carId,
+      from,
+      to: { kind: 'BOARD', area: nodeArea(edge.to), slot: 0 },
+      reason: 'CHAIN_PUSH',
+    });
+    return null;
+  }
+
+  const startCar = getCarAtNode(state, graph.startNodeId);
+  if (startCar === null) {
+    const supplyCar = getSupplyCar(state, model);
+    if (supplyCar === null) return { ok: false, reason: 'CAR_NOT_AVAILABLE' };
+    const from = state.board.cars[supplyCar];
+    if (!from) return { ok: false, reason: 'CAR_NOT_AVAILABLE' };
+    if (pathChoices.length > 0) return { ok: false, reason: 'INVALID_PATH_CHOICE' };
+    return {
+      ok: true,
+      moves: [
+        {
+          carId: supplyCar,
+          from,
+          to: { kind: 'BOARD', area: nodeArea(graph.startNodeId), slot: 0 },
+          reason: 'SUPPLY_REFILL',
+        },
+      ],
+      ppAwarded: 0,
+    };
+  }
+
+  const failure = moveCarFromNode(startCar, graph.startNodeId);
+  if (failure !== null) return failure;
+  if (choiceIndex !== pathChoices.length) return { ok: false, reason: 'INVALID_PATH_CHOICE' };
+
+  const supplyCar = getSupplyCar(state, model);
+  if (supplyCar !== null) {
+    const from = state.board.cars[supplyCar];
+    if (from !== undefined) {
+      moves.push({
+        carId: supplyCar,
+        from,
+        to: { kind: 'BOARD', area: nodeArea(graph.startNodeId), slot: 0 },
+        reason: 'SUPPLY_REFILL',
+      });
+    }
+  }
+
+  return { ok: true, moves, ppAwarded };
+}
+
+export function getAssemblyPathChoiceSequences(
+  state: GameState,
+  model: ModelId,
+): readonly (readonly AssemblyNodeId[])[] {
+  const queue: AssemblyNodeId[][] = [[]];
+  const resolved: AssemblyNodeId[][] = [];
+  const maxCandidates = 128;
+
+  while (queue.length > 0 && resolved.length + queue.length <= maxCandidates) {
+    const choices = queue.shift();
+    if (!choices) break;
+    const plan = planAssemblyPush(state, model, choices);
+    if (plan.ok) {
+      resolved.push(choices);
+      continue;
+    }
+    if (plan.reason !== 'PATH_CHOICE_REQUIRED' || !plan.choices) continue;
+    for (const choice of plan.choices) queue.push([...choices, choice]);
+  }
+
+  return resolved;
 }

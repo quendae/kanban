@@ -1,9 +1,11 @@
 import {
   getAssemblyDestinationSlot,
+  getAssemblyPathChoiceSequences,
   getAssemblyTurnStartCleanupPartIds,
   getMissingUpgradedPartTypes,
   hasAssemblyCarAvailable,
   isPlayerAssemblyPart,
+  planAssemblyPush,
   previewAssemblyTurnStartCleanup,
 } from './assembly.js';
 import type { GameCommand } from './commands.js';
@@ -252,6 +254,28 @@ function provideAssemblyPartErrors(
     }
   }
 
+  if (hasAssemblyCarAvailable(preparedState, command.model)) {
+    const pushPlan = planAssemblyPush(preparedState, command.model, command.pathChoices ?? []);
+    if (!pushPlan.ok) {
+      switch (pushPlan.reason) {
+        case 'PATH_CHOICE_REQUIRED':
+          errors.push('ASSEMBLY_PATH_CHOICE_REQUIRED');
+          break;
+        case 'INVALID_PATH_CHOICE':
+          errors.push('ASSEMBLY_PATH_CHOICE_INVALID');
+          break;
+        case 'CAR_NOT_AVAILABLE':
+          if (!errors.includes('ASSEMBLY_CAR_NOT_AVAILABLE')) {
+            errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
+          }
+          break;
+        default:
+          errors.push('ASSEMBLY_PUSH_GRAPH_INVALID');
+          break;
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -316,16 +340,29 @@ function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCom
     return [];
   }
 
+  const preparedState = previewAssemblyTurnStartCleanup(state, playerId);
   const commands: GameCommand[] = [];
   for (const model of state.content.models) {
+    const pathSequences = getAssemblyPathChoiceSequences(preparedState, model);
     for (const partId of getPlayerParts(state, playerId)) {
-      const command: GameCommand = {
-        type: 'PROVIDE_ASSEMBLY_PART',
-        actorId: playerId,
-        model,
-        partId,
-      };
-      if (provideAssemblyPartErrors(state, command).length === 0) commands.push(command);
+      for (const pathChoices of pathSequences) {
+        const command: GameCommand =
+          pathChoices.length === 0
+            ? {
+                type: 'PROVIDE_ASSEMBLY_PART',
+                actorId: playerId,
+                model,
+                partId,
+              }
+            : {
+                type: 'PROVIDE_ASSEMBLY_PART',
+                actorId: playerId,
+                model,
+                partId,
+                pathChoices,
+              };
+        if (provideAssemblyPartErrors(state, command).length === 0) commands.push(command);
+      }
     }
   }
   return commands;
@@ -571,14 +608,27 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       if (destinationSlot === null) {
         throw new Error('Validated Assembly part delivery has no destination slot');
       }
+      const pushPlan = planAssemblyPush(state, command.model, command.pathChoices ?? []);
+      if (!pushPlan.ok) {
+        throw new Error(`Validated Assembly car push cannot resolve: ${pushPlan.reason}`);
+      }
+      const provided: GameEvent = {
+        id: makeId('event', state.eventIndex),
+        type: 'ASSEMBLY_PART_PROVIDED',
+        playerId: command.actorId,
+        model: command.model,
+        partId: command.partId,
+        destinationSlot,
+      };
+      if (pushPlan.moves.length === 0 && pushPlan.ppAwarded === 0) return [provided];
       return [
+        provided,
         {
-          id: makeId('event', state.eventIndex),
-          type: 'ASSEMBLY_PART_PROVIDED',
+          id: makeId('event', state.eventIndex + 1),
+          type: 'ASSEMBLY_CAR_CHAIN_RESOLVED',
           playerId: command.actorId,
-          model: command.model,
-          partId: command.partId,
-          destinationSlot,
+          moves: pushPlan.moves,
+          ppAwarded: pushPlan.ppAwarded,
         },
       ];
     }

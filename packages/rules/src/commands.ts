@@ -1,5 +1,5 @@
 import type { KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
-import type { DesignId, KanbanOrderId, PartId, PlayerId } from './ids.js';
+import type { AssemblyNodeId, DesignId, KanbanOrderId, PartId, PlayerId } from './ids.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameCommand =
@@ -46,6 +46,7 @@ export type GameCommand =
       readonly actorId: PlayerId;
       readonly model: ModelId;
       readonly partId: PartId;
+      readonly pathChoices?: readonly AssemblyNodeId[];
     }
   | {
       readonly type: 'SWAP_RECYCLING_PART';

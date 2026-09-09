@@ -191,6 +191,7 @@ describe('Assembly — turn-start cleanup and Provide Needed Part', () => {
     expect(result.events.map((event) => event.type)).toEqual([
       'ASSEMBLY_SPACES_CLEARED',
       'ASSEMBLY_PART_PROVIDED',
+      'ASSEMBLY_CAR_CHAIN_RESOLVED',
     ]);
     expect(result.state.board.parts['part:0']).toEqual({ kind: 'SUPPLY' });
     expect(result.state.board.parts['part:1']).toEqual({ kind: 'SUPPLY' });
