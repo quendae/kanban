@@ -113,6 +113,8 @@ function commandLabel(state: GameState, command: GameCommand): string {
       return `Choose ${command.plaqueId} · ${command.department}`;
     case 'CONVERT_RED_SEAT':
       return 'Convert Red Seat · 0 Shifts';
+    case 'START_MICROMANAGE':
+      return `Micro-manage ${command.department}`;
     case 'FINISH_WORK':
       return 'Finish work';
   }
