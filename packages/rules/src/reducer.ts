@@ -222,6 +222,36 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'DEMAND_RED_SEAT_CONSUMED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          activeDemands: state.board.activeDemands.map((demand) =>
+            demand.demandId === event.demandId
+              ? { ...demand, redSeatsRemaining: Math.max(0, demand.redSeatsRemaining - 1) }
+              : demand,
+          ),
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, genericRedSeats: player.genericRedSeats + 1 }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DEMANDS_REFRESHED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          activeDemands: event.activeDemands,
+          demandDeck: event.demandDeck,
+          demandDiscard: event.demandDiscard,
+        },
+        rng: event.rng,
+        eventIndex: state.eventIndex + 1,
+      };
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,

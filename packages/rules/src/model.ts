@@ -68,6 +68,7 @@ export interface BoardState {
   readonly partValues: Readonly<Record<PartTypeId, number>>;
   readonly activeDemands: readonly ActiveDemandState[];
   readonly demandDeck: readonly DemandId[];
+  readonly demandDiscard: readonly DemandId[];
   readonly paceCarPosition: number;
   readonly nextMeetingThreshold: number;
   readonly doubleUpgradedPartTypes: Readonly<Partial<Record<PartTypeId, PlayerId>>>;

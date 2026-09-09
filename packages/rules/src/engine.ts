@@ -12,6 +12,11 @@ import type { GameCommand } from './commands.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import { getGameRules } from './content.js';
 import {
+  getMatchingDemandId,
+  planDemandRefresh,
+  willCompleteAssemblyModel,
+} from './demand.js';
+import {
   getOldestDesignBonus,
   getOpenBlueprintSlot,
   getSelectableDesignIds,
@@ -612,25 +617,39 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       if (!pushPlan.ok) {
         throw new Error(`Validated Assembly car push cannot resolve: ${pushPlan.reason}`);
       }
-      const provided: GameEvent = {
-        id: makeId('event', state.eventIndex),
-        type: 'ASSEMBLY_PART_PROVIDED',
-        playerId: command.actorId,
-        model: command.model,
-        partId: command.partId,
-        destinationSlot,
-      };
-      if (pushPlan.moves.length === 0 && pushPlan.ppAwarded === 0) return [provided];
-      return [
-        provided,
+
+      const events: GameEvent[] = [
         {
-          id: makeId('event', state.eventIndex + 1),
+          id: makeId('event', state.eventIndex),
+          type: 'ASSEMBLY_PART_PROVIDED',
+          playerId: command.actorId,
+          model: command.model,
+          partId: command.partId,
+          destinationSlot,
+        },
+      ];
+      if (pushPlan.moves.length > 0 || pushPlan.ppAwarded > 0) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
           type: 'ASSEMBLY_CAR_CHAIN_RESOLVED',
           playerId: command.actorId,
           moves: pushPlan.moves,
           ppAwarded: pushPlan.ppAwarded,
-        },
-      ];
+        });
+      }
+
+      if (willCompleteAssemblyModel(state, command.model)) {
+        const demandId = getMatchingDemandId(state, command.model);
+        if (demandId !== null) {
+          events.push({
+            id: makeId('event', state.eventIndex + events.length),
+            type: 'DEMAND_RED_SEAT_CONSUMED',
+            playerId: command.actorId,
+            demandId,
+          });
+        }
+      }
+      return events;
     }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
@@ -653,21 +672,37 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       ];
     }
     case 'FINISH_WORK': {
-      const finished: GameEvent = {
-        id: makeId('event', state.eventIndex),
+      const events: GameEvent[] = [];
+      const player = getPlayer(state, command.actorId);
+      if (player.currentDepartment === 'ASSEMBLY') {
+        const refresh = planDemandRefresh(state);
+        if (refresh !== null) {
+          events.push({
+            id: makeId('event', state.eventIndex + events.length),
+            type: 'DEMANDS_REFRESHED',
+            playerId: command.actorId,
+            activeDemands: refresh.activeDemands,
+            demandDeck: refresh.demandDeck,
+            demandDiscard: refresh.demandDiscard,
+            rng: refresh.rng,
+          });
+        }
+      }
+
+      events.push({
+        id: makeId('event', state.eventIndex + events.length),
         type: 'PLAYER_FINISHED_WORK',
         playerId: command.actorId,
-      };
+      });
       const isLastWorker = state.workCursor === state.workOrder.length - 1;
-      if (!isLastWorker) return [finished];
-      return [
-        finished,
-        {
-          id: makeId('event', state.eventIndex + 1),
+      if (isLastWorker) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
           type: 'DAY_ENDED',
           nextSelectionOrder: state.workOrder,
-        },
-      ];
+        });
+      }
+      return events;
     }
   }
 }

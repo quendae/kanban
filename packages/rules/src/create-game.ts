@@ -52,6 +52,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     partValues: Object.fromEntries(PART_TYPE_IDS.map((partType) => [partType, 0])) as BoardState['partValues'],
     activeDemands: [],
     demandDeck: [],
+    demandDiscard: [],
     paceCarPosition: 0,
     nextMeetingThreshold: EMPTY_GAME_CONTENT.testingRules.meetingThresholds[0] ?? 4,
     doubleUpgradedPartTypes: {},

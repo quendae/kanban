@@ -1,9 +1,17 @@
 import type { CarMove } from './assembly.js';
 import type { KanbanOrderOrientation, ModelId } from './content.js';
 import type { DesignMove } from './design.js';
-import type { DesignId, EventId, KanbanOrderId, PartId, PlayerId } from './ids.js';
+import type {
+  DemandId,
+  DesignId,
+  EventId,
+  KanbanOrderId,
+  PartId,
+  PlayerId,
+} from './ids.js';
 import type { WarehousePartMove } from './logistics.js';
-import type { PendingRewardType } from './model.js';
+import type { ActiveDemandState, PendingRewardType } from './model.js';
+import type { RngState } from './rng.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameEvent =
@@ -80,6 +88,21 @@ export type GameEvent =
       readonly playerId: PlayerId;
       readonly moves: readonly CarMove[];
       readonly ppAwarded: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DEMAND_RED_SEAT_CONSUMED';
+      readonly playerId: PlayerId;
+      readonly demandId: DemandId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DEMANDS_REFRESHED';
+      readonly playerId: PlayerId;
+      readonly activeDemands: readonly ActiveDemandState[];
+      readonly demandDeck: readonly DemandId[];
+      readonly demandDiscard: readonly DemandId[];
+      readonly rng: RngState;
     }
   | {
       readonly id: EventId;
