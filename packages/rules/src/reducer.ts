@@ -325,6 +325,12 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'MEETING_SCHEDULED':
+      return {
+        ...state,
+        meetingScheduled: true,
+        eventIndex: state.eventIndex + 1,
+      };
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,
