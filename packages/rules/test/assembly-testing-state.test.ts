@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_GAME_CONTENT,
   MODEL_IDS,
   PART_TYPE_IDS,
   createShellGame,
@@ -28,6 +29,7 @@ function m3Content(): GameContent {
   );
 
   return {
+    ...EMPTY_GAME_CONTENT,
     id: 'm3-state-fixture',
     authoritative: false,
     models: MODEL_IDS,
