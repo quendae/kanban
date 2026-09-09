@@ -49,6 +49,7 @@ import {
 import type { GameState, PlayerState } from './model.js';
 import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
+import { planSandraVisit } from './sandra.js';
 import {
   getPaceCarMeetingTrigger,
   planCarClaim,
@@ -647,7 +648,6 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         if (refresh !== null) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DEMANDS_REFRESHED', playerId: command.actorId, activeDemands: refresh.activeDemands, demandDeck: refresh.demandDeck, demandDiscard: refresh.demandDiscard, rng: refresh.rng });
       }
       events.push({ id: makeId('event', state.eventIndex + events.length), type: 'PLAYER_FINISHED_WORK', playerId: command.actorId });
-      if (state.workCursor === state.workOrder.length - 1) events.push({ id: makeId('event', state.eventIndex + events.length), type: 'DAY_ENDED', nextSelectionOrder: state.workOrder });
       return events;
     }
   }
@@ -673,6 +673,50 @@ function getFactoryGoalEvents(before: GameState, after: GameState): readonly Gam
   }));
 }
 
+function isFinalWorkerFinish(state: GameState, command: GameCommand): boolean {
+  return command.type === 'FINISH_WORK' && state.workCursor === state.workOrder.length - 1;
+}
+
+function getSandraEndOfDayEvents(state: GameState): readonly GameEvent[] {
+  const plan = planSandraVisit(state);
+  const events: GameEvent[] = [
+    {
+      id: makeId('event', state.eventIndex),
+      type: 'SANDRA_MOVED',
+      department: plan.department,
+      workstationId: plan.workstationId,
+    },
+    {
+      id: makeId('event', state.eventIndex + 1),
+      type: 'SANDRA_AUDIT_RESOLVED',
+      department: plan.department,
+      mode: plan.audit.mode,
+      results: plan.audit.results,
+    },
+    {
+      id: makeId('event', state.eventIndex + 2),
+      type: 'SANDRA_DEPARTMENT_TASK_RESOLVED',
+      department: plan.department,
+      task: plan.task,
+    },
+  ];
+  if (plan.task.kind === 'TESTING' && plan.task.meetingThresholdCrossed) {
+    events.push({
+      id: makeId('event', state.eventIndex + events.length),
+      type: 'MEETING_SCHEDULED',
+      previousPaceCarPosition: plan.task.previousPaceCarPosition,
+      newPaceCarPosition: plan.task.paceCarPosition,
+      threshold: state.board.nextMeetingThreshold,
+    });
+  }
+  events.push({
+    id: makeId('event', state.eventIndex + events.length),
+    type: 'DAY_ENDED',
+    nextSelectionOrder: state.workOrder,
+  });
+  return events;
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const errors = validateCommand(state, command);
   if (errors.length > 0) return { status: 'REJECTED', state, errors };
@@ -688,7 +732,14 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
   const commandState = commandEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), preparedState);
   const factoryGoalEvents = getFactoryGoalEvents(state, commandState);
   events.push(...factoryGoalEvents);
-  const nextState = factoryGoalEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), commandState);
+  let nextState = factoryGoalEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), commandState);
+
+  if (isFinalWorkerFinish(state, command)) {
+    const sandraEvents = getSandraEndOfDayEvents(nextState);
+    events.push(...sandraEvents);
+    nextState = sandraEvents.reduce<GameState>((currentState, event) => reduceEvent(currentState, event), nextState);
+  }
+
   assertInvariants(nextState);
   return { status: 'ACCEPTED', state: nextState, events };
 }
