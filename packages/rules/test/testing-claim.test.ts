@@ -93,7 +93,7 @@ function claimState(options?: {
     players: [
       {
         ...shell.players[0]!,
-        currentDepartment: 'TESTING',
+        currentDepartment: 'TESTING_INNOVATION',
         currentWorkstation: 'A_LEFT',
         baseShiftsToday: options?.baseShifts ?? 3,
         bankedShifts: options?.bankedShifts ?? 1,
