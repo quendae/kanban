@@ -105,6 +105,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
       mode: 'NICE',
     },
     pendingRewards: [],
+    pendingAwardPlaqueChoice: null,
     selectionOrder: playerOrder,
     selectionCursor: 0,
     workOrder: [],
