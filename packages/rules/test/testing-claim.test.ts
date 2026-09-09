@@ -56,6 +56,7 @@ function claimState(options?: {
   readonly garageCars?: readonly { readonly carId: CarId; readonly slot: number }[];
 }): GameState {
   const shell = createShellGame({ seed: 'testing-claim', playerCount: 2 });
+  const baseShifts = options?.baseShifts ?? 3;
   const cars: Partial<Record<CarId, EntityLocation>> = {
     'car:0': { kind: 'BOARD', area: 'test-track', slot: 0 },
     'car:1': { kind: 'BOARD', area: 'test-track', slot: 1 },
@@ -94,8 +95,8 @@ function claimState(options?: {
       {
         ...shell.players[0]!,
         currentDepartment: 'TESTING_INNOVATION',
-        currentWorkstation: 'A_LEFT',
-        baseShiftsToday: options?.baseShifts ?? 3,
+        currentWorkstation: baseShifts === 3 ? 'A_RIGHT' : 'A_LEFT',
+        baseShiftsToday: baseShifts,
         bankedShifts: options?.bankedShifts ?? 1,
         garageCapacity: options?.garageCapacity ?? 4,
       },
