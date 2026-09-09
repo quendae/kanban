@@ -2,6 +2,7 @@ import type { KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
 import type { Department } from './enums.js';
 import type {
   AssemblyNodeId,
+  AwardPlaqueId,
   CarId,
   DesignId,
   KanbanOrderId,
@@ -88,6 +89,12 @@ export type GameCommand =
       readonly actorId: PlayerId;
       readonly department: Department;
       readonly source: 'SHIFT' | 'BOOK';
+    }
+  | {
+      readonly type: 'CHOOSE_AWARD_PLAQUE';
+      readonly actorId: PlayerId;
+      readonly department: Department;
+      readonly plaqueId: AwardPlaqueId;
     }
   | {
       readonly type: 'FINISH_WORK';
