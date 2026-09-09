@@ -3,11 +3,7 @@ import type { GarageBenefit } from './content.js';
 import type { GameCommand } from './commands.js';
 import type { RuleErrorCode } from './errors.js';
 import type { CarId, DesignId, PlayerId } from './ids.js';
-import {
-  getDesignDeck,
-  getPlayerGarageCars,
-  getTestTrackCars,
-} from './inventory.js';
+import { getPlayerGarageCars, getTestTrackCars } from './inventory.js';
 import type { EntityLocation, GameState } from './model.js';
 
 export interface ClaimCarPlacement {
@@ -174,6 +170,7 @@ export function planCarClaim(
   if (errors.length > 0) return { ok: false, errors: [...new Set(errors)] };
 
   const centralStart = centralDeckNextSlot(state);
+  const garageBenefits = state.content.garageBenefits ?? [];
   const placements: ClaimCarPlacement[] = command.claims.map((claim) => {
     const isReplacement = claim.replaceCarId !== undefined;
     return {
@@ -183,7 +180,7 @@ export function planCarClaim(
       replaceCarId: claim.replaceCarId ?? null,
       benefit: isReplacement
         ? NONE_BENEFIT
-        : (state.content.garageBenefits[claim.garageSlot] ?? NONE_BENEFIT),
+        : (garageBenefits[claim.garageSlot] ?? NONE_BENEFIT),
     };
   });
   const claimedCars = new Set(placements.map((claim) => claim.carId));
@@ -196,11 +193,6 @@ export function planCarClaim(
     designId: claim.designId,
     location: { kind: 'BOARD', area: 'design-deck:central', slot: centralStart + index },
   }));
-  const garageBenefits = placements.map((claim) => claim.benefit);
-
-  // Reading the current deck here makes explicit that claimed Designs are appended,
-  // rather than replacing or compacting any existing central-deck card.
-  getDesignDeck(state, 'central');
 
   return {
     ok: true,
@@ -208,7 +200,7 @@ export function planCarClaim(
     placements,
     trackMoves,
     designMoves,
-    garageBenefits,
+    garageBenefits: placements.map((claim) => claim.benefit),
     paceCarPosition: state.board.paceCarPosition + placements.length,
   };
 }
