@@ -102,6 +102,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     kanbanOrderDeck: [],
     sandra: {
       department: 'SANDRA_DESK',
+      workstation: 'F_SANDRA',
       mode: 'NICE',
     },
     pendingRewards: [],
