@@ -97,6 +97,10 @@ export type GameCommand =
       readonly plaqueId: AwardPlaqueId;
     }
   | {
+      readonly type: 'CONVERT_RED_SEAT';
+      readonly actorId: PlayerId;
+    }
+  | {
       readonly type: 'FINISH_WORK';
       readonly actorId: PlayerId;
     };
