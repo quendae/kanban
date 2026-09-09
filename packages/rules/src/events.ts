@@ -122,6 +122,13 @@ export type GameEvent =
     }
   | {
       readonly id: EventId;
+      readonly type: 'MEETING_SCHEDULED';
+      readonly previousPaceCarPosition: number;
+      readonly newPaceCarPosition: number;
+      readonly threshold: number;
+    }
+  | {
+      readonly id: EventId;
       readonly type: 'RECYCLING_PART_SWAPPED';
       readonly playerId: PlayerId;
       readonly outgoingPartId: PartId;
