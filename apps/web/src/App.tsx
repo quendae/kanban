@@ -109,6 +109,8 @@ function commandLabel(state: GameState, command: GameCommand): string {
       return `Recycle ${command.outgoingPartId} ↔ ${command.incomingPartId} · 0 Shifts`;
     case 'TRAIN_DEPARTMENT':
       return `Train ${command.department} · ${command.source === 'BOOK' ? '1 Book' : '1 Shift'}`;
+    case 'CHOOSE_AWARD_PLAQUE':
+      return `Choose ${command.plaqueId} · ${command.department}`;
     case 'FINISH_WORK':
       return 'Finish work';
   }
