@@ -10,6 +10,7 @@ import type {
   PlayerId,
   UpgradeSpaceId,
 } from './ids.js';
+import type { MicromanageDepartment } from './model.js';
 import type { WorkstationId } from './workstations.js';
 
 export interface ClaimCarDecision {
@@ -99,6 +100,11 @@ export type GameCommand =
   | {
       readonly type: 'CONVERT_RED_SEAT';
       readonly actorId: PlayerId;
+    }
+  | {
+      readonly type: 'START_MICROMANAGE';
+      readonly actorId: PlayerId;
+      readonly department: MicromanageDepartment;
     }
   | {
       readonly type: 'FINISH_WORK';
