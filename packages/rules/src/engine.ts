@@ -1,6 +1,21 @@
+import {
+  getAssemblyDestinationSlot,
+  getAssemblyPathChoiceSequences,
+  getAssemblyTurnStartCleanupPartIds,
+  getMissingUpgradedPartTypes,
+  hasAssemblyCarAvailable,
+  isPlayerAssemblyPart,
+  planAssemblyPush,
+  previewAssemblyTurnStartCleanup,
+} from './assembly.js';
 import type { GameCommand } from './commands.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import { getGameRules } from './content.js';
+import {
+  getMatchingDemandId,
+  planDemandRefresh,
+  willCompleteAssemblyModel,
+} from './demand.js';
 import {
   getOldestDesignBonus,
   getOpenBlueprintSlot,
@@ -10,9 +25,15 @@ import {
 } from './design.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
-import { makeId, type PlayerId } from './ids.js';
+import { makeId, type PlayerId, type UpgradeSpaceId } from './ids.js';
 import { assertInvariants } from './invariants.js';
-import { getPlayerParts, getRecyclingParts, getWarehouseParts } from './inventory.js';
+import {
+  getAssemblyParts,
+  getPlayerDesigns,
+  getPlayerParts,
+  getRecyclingParts,
+  getWarehouseParts,
+} from './inventory.js';
 import {
   getMaximumCollectableQuantity,
   getPartCollection,
@@ -21,6 +42,11 @@ import {
 import type { GameState, PlayerState } from './model.js';
 import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
+import {
+  getPaceCarMeetingTrigger,
+  planCarClaim,
+  planDesignUpgrade,
+} from './testing.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
 export type CommandResult =
@@ -195,6 +221,91 @@ function takePartsVoucherErrors(
   return errors;
 }
 
+function provideAssemblyPartErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'PROVIDE_ASSEMBLY_PART' }>,
+): readonly RuleErrorCode[] {
+  const errors = activeWorkErrors(state, command.actorId);
+  const player = getPlayer(state, command.actorId);
+  if (player.currentDepartment !== 'ASSEMBLY') errors.push('NOT_IN_ASSEMBLY');
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+
+  const preparedState = previewAssemblyTurnStartCleanup(state, command.actorId);
+  const graph = preparedState.content.assemblyGraph.models[command.model];
+  if (!graph) {
+    errors.push('ASSEMBLY_MODEL_DEFINITION_MISSING');
+    return errors;
+  }
+
+  if (!isPlayerAssemblyPart(preparedState, command.actorId, command.partId)) {
+    errors.push('ASSEMBLY_PART_NOT_OWNED');
+  }
+  const part = preparedState.content.parts[command.partId];
+  if (!part) errors.push('ASSEMBLY_PART_DEFINITION_MISSING');
+
+  if (!hasAvailableShift(preparedState, command.actorId)) errors.push('INSUFFICIENT_SHIFTS');
+  if (!hasAssemblyCarAvailable(preparedState, command.model)) {
+    errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
+  }
+  if (getAssemblyDestinationSlot(preparedState, command.model) === null) {
+    errors.push('ASSEMBLY_SPACES_FULL');
+  }
+
+  if (part) {
+    const presentTypes = new Set(
+      getAssemblyParts(preparedState, command.model)
+        .map((partId) => preparedState.content.parts[partId]?.type)
+        .filter((partType) => partType !== undefined),
+    );
+    if (presentTypes.has(part.type)) errors.push('ASSEMBLY_PART_TYPE_ALREADY_PRESENT');
+
+    const missingUpgraded = getMissingUpgradedPartTypes(preparedState, command.model);
+    if (missingUpgraded.length > 0 && !missingUpgraded.includes(part.type)) {
+      errors.push('ASSEMBLY_UPGRADED_PARTS_REQUIRED_FIRST');
+    }
+  }
+
+  if (hasAssemblyCarAvailable(preparedState, command.model)) {
+    const pushPlan = planAssemblyPush(preparedState, command.model, command.pathChoices ?? []);
+    if (!pushPlan.ok) {
+      switch (pushPlan.reason) {
+        case 'PATH_CHOICE_REQUIRED':
+          errors.push('ASSEMBLY_PATH_CHOICE_REQUIRED');
+          break;
+        case 'INVALID_PATH_CHOICE':
+          errors.push('ASSEMBLY_PATH_CHOICE_INVALID');
+          break;
+        case 'CAR_NOT_AVAILABLE':
+          if (!errors.includes('ASSEMBLY_CAR_NOT_AVAILABLE')) {
+            errors.push('ASSEMBLY_CAR_NOT_AVAILABLE');
+          }
+          break;
+        default:
+          errors.push('ASSEMBLY_PUSH_GRAPH_INVALID');
+          break;
+      }
+    }
+  }
+
+  return errors;
+}
+
+function claimCarsErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'CLAIM_CARS' }>,
+): readonly RuleErrorCode[] {
+  const plan = planCarClaim(state, command);
+  return plan.ok ? [] : plan.errors;
+}
+
+function upgradeDesignErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'UPGRADE_DESIGN' }>,
+): readonly RuleErrorCode[] {
+  const plan = planDesignUpgrade(state, command);
+  return plan.ok ? [] : plan.errors;
+}
+
 function recyclingSwapErrors(
   state: GameState,
   command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
@@ -245,6 +356,78 @@ function getLegalRecyclingCommands(state: GameState, playerId: PlayerId): GameCo
   return commands;
 }
 
+function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (
+    state.phase !== 'WORK' ||
+    state.activeActorId !== playerId ||
+    player?.currentDepartment !== 'ASSEMBLY' ||
+    state.activeDepartmentAction !== null
+  ) {
+    return [];
+  }
+
+  const preparedState = previewAssemblyTurnStartCleanup(state, playerId);
+  const commands: GameCommand[] = [];
+  for (const model of state.content.models) {
+    const pathSequences = getAssemblyPathChoiceSequences(preparedState, model);
+    for (const partId of getPlayerParts(state, playerId)) {
+      for (const pathChoices of pathSequences) {
+        const command: GameCommand =
+          pathChoices.length === 0
+            ? {
+                type: 'PROVIDE_ASSEMBLY_PART',
+                actorId: playerId,
+                model,
+                partId,
+              }
+            : {
+                type: 'PROVIDE_ASSEMBLY_PART',
+                actorId: playerId,
+                model,
+                partId,
+                pathChoices,
+              };
+        if (provideAssemblyPartErrors(state, command).length === 0) commands.push(command);
+      }
+    }
+  }
+  return commands;
+}
+
+function getLegalTestingCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (
+    state.phase !== 'WORK' ||
+    state.activeActorId !== playerId ||
+    player?.currentDepartment !== 'TESTING_INNOVATION' ||
+    state.activeDepartmentAction !== null
+  ) {
+    return [];
+  }
+
+  const commands: GameCommand[] = [];
+  const upgradeSpaceIds = Object.keys(state.content.upgradeSpaces) as UpgradeSpaceId[];
+  for (const designId of getPlayerDesigns(state, playerId)) {
+    for (const partId of getPlayerParts(state, playerId)) {
+      for (const upgradeSpaceId of upgradeSpaceIds) {
+        for (const doubleUpgrade of [false, true] as const) {
+          const command: GameCommand = {
+            type: 'UPGRADE_DESIGN',
+            actorId: playerId,
+            designId,
+            partId,
+            upgradeSpaceId,
+            doubleUpgrade,
+          };
+          if (upgradeDesignErrors(state, command).length === 0) commands.push(command);
+        }
+      }
+    }
+  }
+  return commands;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -290,6 +473,8 @@ export function getLegalCommands(
     const commands: GameCommand[] = [
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
+      ...getLegalAssemblyCommands(state, playerId),
+      ...getLegalTestingCommands(state, playerId),
     ];
     if (startDesignSelectionErrors(state, playerId).length === 0) {
       commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
@@ -358,6 +543,12 @@ function validateCommand(
       return issueKanbanOrderErrors(state, command);
     case 'TAKE_PARTS_VOUCHER':
       return takePartsVoucherErrors(state, command.actorId);
+    case 'PROVIDE_ASSEMBLY_PART':
+      return provideAssemblyPartErrors(state, command);
+    case 'CLAIM_CARS':
+      return claimCarsErrors(state, command);
+    case 'UPGRADE_DESIGN':
+      return upgradeDesignErrors(state, command);
     case 'SWAP_RECYCLING_PART':
       return recyclingSwapErrors(state, command);
     case 'FINISH_WORK':
@@ -477,6 +668,101 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
           shiftCost: getGameRules(state.content).logisticsVoucherShiftCost,
         },
       ];
+    case 'PROVIDE_ASSEMBLY_PART': {
+      const destinationSlot = getAssemblyDestinationSlot(state, command.model);
+      if (destinationSlot === null) {
+        throw new Error('Validated Assembly part delivery has no destination slot');
+      }
+      const pushPlan = planAssemblyPush(state, command.model, command.pathChoices ?? []);
+      if (!pushPlan.ok) {
+        throw new Error(`Validated Assembly car push cannot resolve: ${pushPlan.reason}`);
+      }
+
+      const events: GameEvent[] = [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'ASSEMBLY_PART_PROVIDED',
+          playerId: command.actorId,
+          model: command.model,
+          partId: command.partId,
+          destinationSlot,
+        },
+      ];
+      if (pushPlan.moves.length > 0 || pushPlan.ppAwarded > 0) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
+          type: 'ASSEMBLY_CAR_CHAIN_RESOLVED',
+          playerId: command.actorId,
+          moves: pushPlan.moves,
+          ppAwarded: pushPlan.ppAwarded,
+        });
+      }
+
+      if (willCompleteAssemblyModel(state, command.model)) {
+        const demandId = getMatchingDemandId(state, command.model);
+        if (demandId !== null) {
+          events.push({
+            id: makeId('event', state.eventIndex + events.length),
+            type: 'DEMAND_RED_SEAT_CONSUMED',
+            playerId: command.actorId,
+            demandId,
+          });
+        }
+      }
+      return events;
+    }
+    case 'CLAIM_CARS': {
+      const plan = planCarClaim(state, command);
+      if (!plan.ok) {
+        throw new Error(`Validated car claim cannot resolve: ${plan.errors.join(',')}`);
+      }
+      const events: GameEvent[] = [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'CARS_CLAIMED',
+          playerId: command.actorId,
+          shiftCost: plan.shiftCost,
+          placements: plan.placements,
+          trackMoves: plan.trackMoves,
+          designMoves: plan.designMoves,
+          garageBenefits: plan.garageBenefits,
+          paceCarPosition: plan.paceCarPosition,
+        },
+      ];
+      const meetingTrigger = getPaceCarMeetingTrigger(state, plan.paceCarPosition);
+      if (meetingTrigger !== null) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
+          type: 'MEETING_SCHEDULED',
+          previousPaceCarPosition: meetingTrigger.previousPaceCarPosition,
+          newPaceCarPosition: meetingTrigger.newPaceCarPosition,
+          threshold: meetingTrigger.threshold,
+        });
+      }
+      return events;
+    }
+    case 'UPGRADE_DESIGN': {
+      const plan = planDesignUpgrade(state, command);
+      if (!plan.ok) {
+        throw new Error(`Validated Design upgrade cannot resolve: ${plan.errors.join(',')}`);
+      }
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'DESIGN_UPGRADED',
+          playerId: plan.playerId,
+          designId: plan.designId,
+          partId: plan.partId,
+          upgradeSpaceId: plan.upgradeSpaceId,
+          partType: plan.partType,
+          doubleUpgrade: plan.doubleUpgrade,
+          previousPartValue: plan.previousPartValue,
+          newPartValue: plan.newPartValue,
+          ppAwarded: plan.ppAwarded,
+          benefit: plan.benefit,
+        },
+      ];
+    }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
         state,
@@ -498,23 +784,50 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
       ];
     }
     case 'FINISH_WORK': {
-      const finished: GameEvent = {
-        id: makeId('event', state.eventIndex),
+      const events: GameEvent[] = [];
+      const player = getPlayer(state, command.actorId);
+      if (player.currentDepartment === 'ASSEMBLY') {
+        const refresh = planDemandRefresh(state);
+        if (refresh !== null) {
+          events.push({
+            id: makeId('event', state.eventIndex + events.length),
+            type: 'DEMANDS_REFRESHED',
+            playerId: command.actorId,
+            activeDemands: refresh.activeDemands,
+            demandDeck: refresh.demandDeck,
+            demandDiscard: refresh.demandDiscard,
+            rng: refresh.rng,
+          });
+        }
+      }
+
+      events.push({
+        id: makeId('event', state.eventIndex + events.length),
         type: 'PLAYER_FINISHED_WORK',
         playerId: command.actorId,
-      };
+      });
       const isLastWorker = state.workCursor === state.workOrder.length - 1;
-      if (!isLastWorker) return [finished];
-      return [
-        finished,
-        {
-          id: makeId('event', state.eventIndex + 1),
+      if (isLastWorker) {
+        events.push({
+          id: makeId('event', state.eventIndex + events.length),
           type: 'DAY_ENDED',
           nextSelectionOrder: state.workOrder,
-        },
-      ];
+        });
+      }
+      return events;
     }
   }
+}
+
+function getAssemblyCleanupEvent(state: GameState, command: GameCommand): GameEvent | null {
+  const partIds = getAssemblyTurnStartCleanupPartIds(state, command.actorId);
+  if (partIds.length === 0) return null;
+  return {
+    id: makeId('event', state.eventIndex),
+    type: 'ASSEMBLY_SPACES_CLEARED',
+    playerId: command.actorId,
+    partIds,
+  };
 }
 
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
@@ -523,10 +836,19 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
     return { status: 'REJECTED', state, errors };
   }
 
-  const events = resolveCommand(state, command);
-  const nextState = events.reduce<GameState>(
+  const events: GameEvent[] = [];
+  let preparedState = state;
+  const cleanupEvent = getAssemblyCleanupEvent(state, command);
+  if (cleanupEvent !== null) {
+    events.push(cleanupEvent);
+    preparedState = reduceEvent(preparedState, cleanupEvent);
+  }
+
+  const commandEvents = resolveCommand(preparedState, command);
+  events.push(...commandEvents);
+  const nextState = commandEvents.reduce<GameState>(
     (currentState, event) => reduceEvent(currentState, event),
-    state,
+    preparedState,
   );
   assertInvariants(nextState);
   return { status: 'ACCEPTED', state: nextState, events };

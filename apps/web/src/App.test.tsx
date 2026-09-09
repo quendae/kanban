@@ -42,4 +42,22 @@ describe('workstation alley development UI', () => {
     expect(markup).toContain('Kanban Orders');
     expect(markup).toContain('aria-live="polite"');
   });
+
+  it('renders the Assembly and Testing operating surfaces from synthetic M3 state', () => {
+    const markup = renderToStaticMarkup(<App />);
+
+    expect(markup).toContain('aria-label="Assembly operating surface"');
+    for (let model = 0; model < 5; model += 1) {
+      expect(markup).toContain(`data-assembly-model="model:${model}"`);
+    }
+
+    expect(markup).toContain('aria-label="Testing and Innovation operating surface"');
+    expect(markup).toContain('Test Track');
+    expect(markup).toContain('Pace Car');
+    expect(markup).toContain('Demand status');
+    expect(markup).toContain('Player garages');
+    expect(markup).toContain('Innovation · Part Values');
+    expect(markup).toContain('data-motion-fallback="explicit"');
+    expect(markup).toContain('aria-live="polite"');
+  });
 });

@@ -1,8 +1,23 @@
-import type { KanbanOrderOrientation } from './content.js';
+import type { CarMove } from './assembly.js';
+import type { GarageBenefit, KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
 import type { DesignMove } from './design.js';
-import type { DesignId, EventId, KanbanOrderId, PartId, PlayerId } from './ids.js';
+import type {
+  DemandId,
+  DesignId,
+  EventId,
+  KanbanOrderId,
+  PartId,
+  PlayerId,
+  UpgradeSpaceId,
+} from './ids.js';
 import type { WarehousePartMove } from './logistics.js';
-import type { PendingRewardType } from './model.js';
+import type { ActiveDemandState, PendingRewardType } from './model.js';
+import type { RngState } from './rng.js';
+import type {
+  ClaimCarPlacement,
+  ClaimDesignMove,
+  ClaimTrackMove,
+} from './testing.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameEvent =
@@ -58,6 +73,74 @@ export type GameEvent =
       readonly type: 'PARTS_VOUCHER_TAKEN';
       readonly playerId: PlayerId;
       readonly shiftCost: 0 | 1;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_SPACES_CLEARED';
+      readonly playerId: PlayerId;
+      readonly partIds: readonly PartId[];
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_PART_PROVIDED';
+      readonly playerId: PlayerId;
+      readonly model: ModelId;
+      readonly partId: PartId;
+      readonly destinationSlot: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'ASSEMBLY_CAR_CHAIN_RESOLVED';
+      readonly playerId: PlayerId;
+      readonly moves: readonly CarMove[];
+      readonly ppAwarded: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DEMAND_RED_SEAT_CONSUMED';
+      readonly playerId: PlayerId;
+      readonly demandId: DemandId;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DEMANDS_REFRESHED';
+      readonly playerId: PlayerId;
+      readonly activeDemands: readonly ActiveDemandState[];
+      readonly demandDeck: readonly DemandId[];
+      readonly demandDiscard: readonly DemandId[];
+      readonly rng: RngState;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'CARS_CLAIMED';
+      readonly playerId: PlayerId;
+      readonly shiftCost: number;
+      readonly placements: readonly ClaimCarPlacement[];
+      readonly trackMoves: readonly ClaimTrackMove[];
+      readonly designMoves: readonly ClaimDesignMove[];
+      readonly garageBenefits: readonly GarageBenefit[];
+      readonly paceCarPosition: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'MEETING_SCHEDULED';
+      readonly previousPaceCarPosition: number;
+      readonly newPaceCarPosition: number;
+      readonly threshold: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DESIGN_UPGRADED';
+      readonly playerId: PlayerId;
+      readonly designId: DesignId;
+      readonly partId: PartId;
+      readonly upgradeSpaceId: UpgradeSpaceId;
+      readonly partType: PartTypeId;
+      readonly doubleUpgrade: boolean;
+      readonly previousPartValue: number;
+      readonly newPartValue: number;
+      readonly ppAwarded: number;
+      readonly benefit: GarageBenefit;
     }
   | {
       readonly id: EventId;

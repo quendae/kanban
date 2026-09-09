@@ -1,6 +1,7 @@
+import type { GarageBenefit } from './content.js';
 import type { GameEvent } from './events.js';
 import type { PlayerId } from './ids.js';
-import type { GameState, PendingRewardType } from './model.js';
+import type { GameState, PendingRewardType, PlayerState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
 function assertNever(value: never): never {
@@ -19,6 +20,41 @@ function rewardTotal(
 
 function usedBankedShifts(baseShiftsToday: number, shiftsSpentToday: number): number {
   return Math.max(0, shiftsSpentToday - baseShiftsToday);
+}
+
+function applyGarageBenefits(
+  player: PlayerState,
+  benefits: readonly GarageBenefit[],
+): PlayerState {
+  let bankedShifts = player.bankedShifts;
+  let books = player.books;
+  let vouchers = player.vouchers;
+  let genericRedSeats = player.genericRedSeats;
+  let pp = player.pp;
+
+  for (const benefit of benefits) {
+    switch (benefit.kind) {
+      case 'NONE':
+        break;
+      case 'BANKED_SHIFT':
+        bankedShifts += benefit.amount;
+        break;
+      case 'BOOK':
+        books += benefit.amount;
+        break;
+      case 'VOUCHER':
+        vouchers += benefit.amount;
+        break;
+      case 'RED_SEAT':
+        genericRedSeats += benefit.amount;
+        break;
+      case 'PP':
+        pp += benefit.amount;
+        break;
+    }
+  }
+
+  return { ...player, bankedShifts, books, vouchers, genericRedSeats, pp };
 }
 
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
@@ -176,6 +212,165 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           ...state.pendingRewards,
           { playerId: event.playerId, type: 'VOUCHER', amount: 1 },
         ],
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'ASSEMBLY_SPACES_CLEARED': {
+      const parts = { ...state.board.parts };
+      for (const partId of event.partIds) parts[partId] = { kind: 'SUPPLY' };
+      return {
+        ...state,
+        board: { ...state.board, parts },
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'ASSEMBLY_PART_PROVIDED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.partId]: {
+              kind: 'BOARD',
+              area: `assembly:${event.model}`,
+              slot: event.destinationSlot,
+            },
+          },
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, shiftsSpentToday: player.shiftsSpentToday + 1 }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'ASSEMBLY_CAR_CHAIN_RESOLVED': {
+      const cars = { ...state.board.cars };
+      for (const move of event.moves) cars[move.carId] = move.to;
+      return {
+        ...state,
+        board: { ...state.board, cars },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, pp: player.pp + event.ppAwarded }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'DEMAND_RED_SEAT_CONSUMED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          activeDemands: state.board.activeDemands.map((demand) =>
+            demand.demandId === event.demandId
+              ? { ...demand, redSeatsRemaining: Math.max(0, demand.redSeatsRemaining - 1) }
+              : demand,
+          ),
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? { ...player, genericRedSeats: player.genericRedSeats + 1 }
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DEMANDS_REFRESHED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          activeDemands: event.activeDemands,
+          demandDeck: event.demandDeck,
+          demandDiscard: event.demandDiscard,
+        },
+        rng: event.rng,
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'CARS_CLAIMED': {
+      const cars = { ...state.board.cars };
+      const designs = { ...state.board.designs };
+
+      for (const placement of event.placements) {
+        if (placement.replaceCarId !== null) {
+          cars[placement.replaceCarId] = { kind: 'SUPPLY' };
+        }
+        cars[placement.carId] = {
+          kind: 'PLAYER',
+          playerId: event.playerId,
+          area: 'garage',
+          slot: placement.garageSlot,
+        };
+      }
+      for (const move of event.trackMoves) cars[move.carId] = move.location;
+      for (const move of event.designMoves) designs[move.designId] = move.location;
+
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          cars,
+          designs,
+          paceCarPosition: event.paceCarPosition,
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? applyGarageBenefits(
+                { ...player, shiftsSpentToday: player.shiftsSpentToday + event.shiftCost },
+                event.garageBenefits,
+              )
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'MEETING_SCHEDULED':
+      return {
+        ...state,
+        meetingScheduled: true,
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'DESIGN_UPGRADED':
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          parts: {
+            ...state.board.parts,
+            [event.partId]: { kind: 'BOARD', area: event.upgradeSpaceId, slot: 0 },
+          },
+          designUpgrades: {
+            ...state.board.designUpgrades,
+            [event.designId]: {
+              partType: event.partType,
+              doubleUpgrade: event.doubleUpgrade,
+            },
+          },
+          partValues: {
+            ...state.board.partValues,
+            [event.partType]: event.newPartValue,
+          },
+          doubleUpgradedPartTypes: event.doubleUpgrade
+            ? {
+                ...state.board.doubleUpgradedPartTypes,
+                [event.partType]: event.playerId,
+              }
+            : state.board.doubleUpgradedPartTypes,
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? applyGarageBenefits(
+                {
+                  ...player,
+                  shiftsSpentToday: player.shiftsSpentToday + 1,
+                  pp: player.pp + event.ppAwarded,
+                  doubleUpgradeUsed: player.doubleUpgradeUsed || event.doubleUpgrade,
+                },
+                [event.benefit],
+              )
+            : player,
+        ),
         eventIndex: state.eventIndex + 1,
       };
     case 'RECYCLING_PART_SWAPPED':

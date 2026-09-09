@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_GAME_CONTENT,
   MODEL_IDS,
   PART_TYPE_IDS,
   createShellGame,
@@ -17,6 +18,7 @@ import {
 } from '../src/index.js';
 
 const content: GameContent = {
+  ...EMPTY_GAME_CONTENT,
   id: 'test-content',
   authoritative: false,
   models: MODEL_IDS,

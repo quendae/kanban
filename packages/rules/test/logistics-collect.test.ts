@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  EMPTY_GAME_CONTENT,
   MODEL_IDS,
   PART_TYPE_IDS,
   applyCommand,
@@ -24,6 +25,7 @@ function logisticsContent(): GameContent {
     ]),
   );
   return {
+    ...EMPTY_GAME_CONTENT,
     id: 'logistics-test-content',
     authoritative: false,
     models: MODEL_IDS,

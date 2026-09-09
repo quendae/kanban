@@ -22,6 +22,7 @@ import {
   type WorkstationId,
 } from '@kanban/rules';
 import { createDevelopmentGame } from './development-game.js';
+import { AssemblyOperatingSurface, TestingInnovationSurface } from './M3Surfaces.js';
 
 interface DepartmentLaneDefinition {
   readonly label: string;
@@ -98,6 +99,12 @@ function commandLabel(state: GameState, command: GameCommand): string {
       const cost = getGameRules(state.content).logisticsVoucherShiftCost;
       return `Take Parts Voucher · ${shiftLabel(cost)}`;
     }
+    case 'PROVIDE_ASSEMBLY_PART':
+      return `Provide ${partLabel(state, command.partId)} → ${command.model} · 1 Shift`;
+    case 'CLAIM_CARS':
+      return `Claim ${command.claims.length} ${command.claims.length === 1 ? 'car' : 'cars'}`;
+    case 'UPGRADE_DESIGN':
+      return `Upgrade ${designLabel(state, command.designId)} with ${partLabel(state, command.partId)} · ${command.upgradeSpaceId}${command.doubleUpgrade ? ' · double' : ''} · 1 Shift`;
     case 'SWAP_RECYCLING_PART':
       return `Recycle ${command.outgoingPartId} ↔ ${command.incomingPartId} · 0 Shifts`;
     case 'FINISH_WORK':
@@ -450,6 +457,8 @@ export function App() {
           </section>
 
           <section className="operations-deck" aria-label="Factory resources">
+            <AssemblyOperatingSurface state={state} />
+            <TestingInnovationSurface state={state} />
             <DesignStudio state={state} />
             <LogisticsFloor state={state} />
             <RecyclingBay state={state} />
