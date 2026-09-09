@@ -9,6 +9,7 @@ export * from './engine.js';
 export * from './enums.js';
 export * from './errors.js';
 export * from './events.js';
+export * from './hr.js';
 export * from './ids.js';
 export * from './inventory.js';
 export * from './invariants.js';
