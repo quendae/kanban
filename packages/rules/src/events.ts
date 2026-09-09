@@ -1,5 +1,5 @@
 import type { CarMove } from './assembly.js';
-import type { GarageBenefit, KanbanOrderOrientation, ModelId } from './content.js';
+import type { GarageBenefit, KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
 import type { DesignMove } from './design.js';
 import type {
   DemandId,
@@ -8,6 +8,7 @@ import type {
   KanbanOrderId,
   PartId,
   PlayerId,
+  UpgradeSpaceId,
 } from './ids.js';
 import type { WarehousePartMove } from './logistics.js';
 import type { ActiveDemandState, PendingRewardType } from './model.js';
@@ -126,6 +127,20 @@ export type GameEvent =
       readonly previousPaceCarPosition: number;
       readonly newPaceCarPosition: number;
       readonly threshold: number;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'DESIGN_UPGRADED';
+      readonly playerId: PlayerId;
+      readonly designId: DesignId;
+      readonly partId: PartId;
+      readonly upgradeSpaceId: UpgradeSpaceId;
+      readonly partType: PartTypeId;
+      readonly doubleUpgrade: boolean;
+      readonly previousPartValue: number;
+      readonly newPartValue: number;
+      readonly ppAwarded: number;
+      readonly benefit: GarageBenefit;
     }
   | {
       readonly id: EventId;
