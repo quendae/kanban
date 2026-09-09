@@ -48,6 +48,7 @@ export interface PlayerState {
 
 export interface SandraState {
   readonly department: Department | 'SANDRA_DESK';
+  readonly workstation: WorkstationId;
   readonly mode: 'NICE' | 'MEAN';
 }
 
