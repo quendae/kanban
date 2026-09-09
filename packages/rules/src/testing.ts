@@ -1,9 +1,20 @@
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
-import type { GarageBenefit } from './content.js';
+import type { GarageBenefit, PartTypeId } from './content.js';
 import type { GameCommand } from './commands.js';
 import type { RuleErrorCode } from './errors.js';
-import type { CarId, DesignId, PlayerId } from './ids.js';
-import { getPlayerGarageCars, getTestTrackCars } from './inventory.js';
+import type {
+  CarId,
+  DesignId,
+  PartId,
+  PlayerId,
+  UpgradeSpaceId,
+} from './ids.js';
+import {
+  getPlayerDesigns,
+  getPlayerGarageCars,
+  getPlayerParts,
+  getTestTrackCars,
+} from './inventory.js';
 import type { EntityLocation, GameState } from './model.js';
 
 export interface ClaimCarPlacement {
@@ -30,6 +41,25 @@ export interface PaceCarMeetingTrigger {
   readonly threshold: number;
 }
 
+export interface DesignUpgradePlan {
+  readonly ok: true;
+  readonly playerId: PlayerId;
+  readonly designId: DesignId;
+  readonly partId: PartId;
+  readonly upgradeSpaceId: UpgradeSpaceId;
+  readonly partType: PartTypeId;
+  readonly doubleUpgrade: boolean;
+  readonly previousPartValue: number;
+  readonly newPartValue: number;
+  readonly ppAwarded: number;
+  readonly benefit: GarageBenefit;
+}
+
+export interface DesignUpgradeFailure {
+  readonly ok: false;
+  readonly errors: readonly RuleErrorCode[];
+}
+
 export type ClaimCarsPlan =
   | {
       readonly ok: true;
@@ -49,6 +79,12 @@ const NONE_BENEFIT: GarageBenefit = { kind: 'NONE' };
 
 function getPlayer(state: GameState, playerId: PlayerId) {
   return state.players.find((player) => player.id === playerId);
+}
+
+function maximumUsableShifts(state: GameState, playerId: PlayerId): number {
+  const player = getPlayer(state, playerId);
+  if (!player) return 0;
+  return Math.min(MAX_SHIFTS_PER_DAY, player.baseShiftsToday + player.bankedShifts);
 }
 
 export function getClaimCostSnapshot(
@@ -72,6 +108,20 @@ export function getPaceCarMeetingTrigger(
   if (previousPaceCarPosition >= threshold) return null;
   if (newPaceCarPosition < threshold) return null;
   return { previousPaceCarPosition, newPaceCarPosition, threshold };
+}
+
+export function isTestedDesign(
+  state: GameState,
+  playerId: PlayerId,
+  designId: DesignId,
+): boolean {
+  if (!getPlayerDesigns(state, playerId).includes(designId)) return false;
+  if (state.board.designUpgrades[designId] === undefined) return false;
+  const model = state.content.designs[designId]?.model;
+  if (model === undefined) return false;
+  return getPlayerGarageCars(state, playerId).some(
+    (carId) => state.content.cars[carId]?.model === model,
+  );
 }
 
 function getGarageOccupants(
@@ -100,6 +150,119 @@ function centralDeckNextSlot(state: GameState): number {
     }
   }
   return maxSlot + 1;
+}
+
+function isUpgradeSpaceOccupied(state: GameState, upgradeSpaceId: UpgradeSpaceId): boolean {
+  return Object.values(state.board.parts).some(
+    (location) => location?.kind === 'BOARD' && location.area === upgradeSpaceId,
+  );
+}
+
+export function planDesignUpgrade(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'UPGRADE_DESIGN' }>,
+): DesignUpgradePlan | DesignUpgradeFailure {
+  const errors: RuleErrorCode[] = [];
+  const player = getPlayer(state, command.actorId);
+
+  if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
+  if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
+  if (player?.currentDepartment !== 'TESTING_INNOVATION') {
+    errors.push('NOT_IN_TESTING_INNOVATION');
+  }
+  if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
+  if (!player) return { ok: false, errors: [...errors, 'WRONG_ACTOR'] };
+  if (player.shiftsSpentToday + 1 > maximumUsableShifts(state, command.actorId)) {
+    errors.push('INSUFFICIENT_SHIFTS');
+  }
+
+  const designLocation = state.board.designs[command.designId];
+  if (
+    designLocation?.kind !== 'PLAYER' ||
+    designLocation.playerId !== command.actorId ||
+    designLocation.area !== 'blueprints'
+  ) {
+    errors.push('UPGRADE_DESIGN_NOT_OWNED');
+  }
+  const designDefinition = state.content.designs[command.designId];
+  if (!designDefinition) errors.push('UPGRADE_DESIGN_DEFINITION_MISSING');
+  if (state.board.designUpgrades[command.designId] !== undefined) {
+    errors.push('UPGRADE_DESIGN_ALREADY_UPGRADED');
+  }
+  if (designDefinition?.partType === null) errors.push('UPGRADE_DESIGN_PART_TYPE_MISSING');
+
+  if (!getPlayerParts(state, command.actorId).includes(command.partId)) {
+    errors.push('UPGRADE_PART_NOT_OWNED');
+  }
+  const partDefinition = state.content.parts[command.partId];
+  if (!partDefinition) errors.push('UPGRADE_PART_DEFINITION_MISSING');
+  if (
+    designDefinition?.partType !== null &&
+    designDefinition?.partType !== undefined &&
+    partDefinition !== undefined &&
+    designDefinition.partType !== partDefinition.type
+  ) {
+    errors.push('UPGRADE_PART_TYPE_MISMATCH');
+  }
+
+  const spaceDefinition = state.content.upgradeSpaces[command.upgradeSpaceId];
+  if (!spaceDefinition) errors.push('UPGRADE_SPACE_DEFINITION_MISSING');
+  if (
+    spaceDefinition?.model !== null &&
+    spaceDefinition?.model !== undefined &&
+    designDefinition !== undefined &&
+    spaceDefinition.model !== designDefinition.model
+  ) {
+    errors.push('UPGRADE_SPACE_MODEL_MISMATCH');
+  }
+  if (
+    spaceDefinition?.partType !== null &&
+    spaceDefinition?.partType !== undefined &&
+    partDefinition !== undefined &&
+    spaceDefinition.partType !== partDefinition.type
+  ) {
+    errors.push('UPGRADE_SPACE_PART_TYPE_MISMATCH');
+  }
+  if (isUpgradeSpaceOccupied(state, command.upgradeSpaceId)) {
+    errors.push('UPGRADE_SPACE_OCCUPIED');
+  }
+
+  const partType = partDefinition?.type;
+  if (command.doubleUpgrade) {
+    if (!player.certifications.includes('TESTING_INNOVATION')) {
+      errors.push('DOUBLE_UPGRADE_REQUIRES_CERTIFICATION');
+    }
+    if (player.doubleUpgradeUsed) errors.push('DOUBLE_UPGRADE_ALREADY_USED');
+    if (partType !== undefined && state.board.doubleUpgradedPartTypes[partType] !== undefined) {
+      errors.push('DOUBLE_UPGRADE_PART_TYPE_RESERVED');
+    }
+  }
+
+  if (errors.length > 0 || partType === undefined || designDefinition === undefined || spaceDefinition === undefined) {
+    return { ok: false, errors: [...new Set(errors)] };
+  }
+
+  const previousPartValue = state.board.partValues[partType] ?? 0;
+  const increase = command.doubleUpgrade ? 2 : 1;
+  const newPartValue = Math.min(
+    state.content.testingRules.maxPartValue,
+    previousPartValue + increase,
+  );
+  const ppAwarded = 2 + (command.doubleUpgrade ? newPartValue : 0);
+
+  return {
+    ok: true,
+    playerId: command.actorId,
+    designId: command.designId,
+    partId: command.partId,
+    upgradeSpaceId: command.upgradeSpaceId,
+    partType,
+    doubleUpgrade: command.doubleUpgrade,
+    previousPartValue,
+    newPartValue,
+    ppAwarded,
+    benefit: spaceDefinition.benefit,
+  };
 }
 
 export function planCarClaim(
@@ -179,11 +342,9 @@ export function planCarClaim(
     }
   }
 
-  const maximumUsable = Math.min(
-    MAX_SHIFTS_PER_DAY,
-    player.baseShiftsToday + player.bankedShifts,
-  );
-  if (player.shiftsSpentToday + shiftCost > maximumUsable) errors.push('INSUFFICIENT_SHIFTS');
+  if (player.shiftsSpentToday + shiftCost > maximumUsableShifts(state, command.actorId)) {
+    errors.push('INSUFFICIENT_SHIFTS');
+  }
 
   if (errors.length > 0) return { ok: false, errors: [...new Set(errors)] };
 
