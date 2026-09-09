@@ -273,6 +273,14 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         } : player),
         eventIndex: state.eventIndex + 1,
       };
+    case 'MICROMANAGE_STARTED':
+      return {
+        ...state,
+        players: state.players.map((player) => player.id === event.playerId
+          ? { ...player, micromanagedDepartment: event.department }
+          : player),
+        eventIndex: state.eventIndex + 1,
+      };
     case 'PLAYER_FINISHED_WORK': {
       const nextCursor = state.workCursor + 1;
       return { ...state, players: state.players.map((player) => player.id === event.playerId ? { ...player, done: true } : player), workCursor: nextCursor, activeActorId: state.workOrder[nextCursor] ?? null, eventIndex: state.eventIndex + 1 };
@@ -288,6 +296,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           previousDepartment: player.currentDepartment,
           currentDepartment: null,
           currentWorkstation: null,
+          micromanagedDepartment: null,
           baseShiftsToday: 0,
           shiftsSpentToday: 0,
           done: false,
