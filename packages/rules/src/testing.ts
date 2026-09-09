@@ -1,3 +1,4 @@
+import { getEffectiveWorkDepartment } from './administration.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import type { GarageBenefit, PartTypeId } from './content.js';
 import type { GameCommand } from './commands.js';
@@ -167,7 +168,7 @@ export function planDesignUpgrade(
 
   if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
   if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
-  if (player?.currentDepartment !== 'TESTING_INNOVATION') {
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'TESTING_INNOVATION') {
     errors.push('NOT_IN_TESTING_INNOVATION');
   }
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -274,7 +275,7 @@ export function planCarClaim(
 
   if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
   if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
-  if (player?.currentDepartment !== 'TESTING_INNOVATION') {
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'TESTING_INNOVATION') {
     errors.push('NOT_IN_TESTING_INNOVATION');
   }
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
