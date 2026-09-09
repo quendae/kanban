@@ -326,6 +326,8 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         }
         case 'ADMINISTRATION':
           return { ...state, eventIndex: state.eventIndex + 1 };
+        default:
+          return assertNever(event.task);
       }
     }
     case 'PLAYER_FINISHED_WORK': {
