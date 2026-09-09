@@ -6,6 +6,8 @@ export type KanbanOrderId = `kanban-order:${number}`;
 export type DemandId = `demand:${number}`;
 export type AssemblyNodeId = `assembly-node:${string}`;
 export type UpgradeSpaceId = `upgrade-space:${number}`;
+export type AwardPlaqueId = `award-plaque:${number}`;
+export type FactoryGoalId = `factory-goal:${number}`;
 export type EventId = `event:${number}`;
 
 export function makeId(namespace: 'player', index: number): PlayerId;
@@ -15,6 +17,8 @@ export function makeId(namespace: 'design', index: number): DesignId;
 export function makeId(namespace: 'kanban-order', index: number): KanbanOrderId;
 export function makeId(namespace: 'demand', index: number): DemandId;
 export function makeId(namespace: 'upgrade-space', index: number): UpgradeSpaceId;
+export function makeId(namespace: 'award-plaque', index: number): AwardPlaqueId;
+export function makeId(namespace: 'factory-goal', index: number): FactoryGoalId;
 export function makeId(namespace: 'event', index: number): EventId;
 export function makeId(namespace: string, index: number): `${string}:${number}` {
   if (!Number.isInteger(index) || index < 0) {
