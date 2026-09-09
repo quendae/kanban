@@ -1,4 +1,5 @@
 import {
+  EMPTY_GAME_CONTENT,
   MODEL_IDS,
   PART_TYPE_IDS,
   createShellGame,
@@ -100,6 +101,7 @@ const kanbanOrders: GameContent['kanbanOrders'] = {
 };
 
 export const DEVELOPMENT_CONTENT: GameContent = {
+  ...EMPTY_GAME_CONTENT,
   id: 'synthetic-development-content',
   authoritative: false,
   rules: { logisticsVoucherShiftCost: 0 },

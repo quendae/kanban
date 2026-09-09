@@ -209,10 +209,15 @@ export function getInvariantViolations(
 
   for (const partType of state.content.partTypes) {
     const value = state.board.partValues[partType];
-    if (!Number.isInteger(value) || value < 0 || value > state.content.testingRules.maxPartValue) {
+    if (
+      value === undefined ||
+      !Number.isInteger(value) ||
+      value < 0 ||
+      value > state.content.testingRules.maxPartValue
+    ) {
       violations.push({
         code: 'INVALID_PART_VALUE',
-        message: `${partType} has invalid global value ${value}`,
+        message: `${partType} has invalid global value ${String(value)}`,
       });
     }
   }
