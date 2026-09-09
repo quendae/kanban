@@ -47,15 +47,12 @@ export function getAssemblyDestinationSlot(state: GameState, model: ModelId): nu
   const graph = state.content.assemblyGraph.models[model];
   if (!graph) return null;
 
-  const usedSlots = new Set(
-    Object.values(state.board.parts)
-      .filter(
-        (location) =>
-          location?.kind === 'BOARD' && location.area === `assembly:${model}`,
-      )
-      .map((location) => location?.slot)
-      .filter((slot): slot is number => slot !== undefined),
-  );
+  const usedSlots = new Set<number>();
+  for (const location of Object.values(state.board.parts)) {
+    if (location?.kind === 'BOARD' && location.area === `assembly:${model}`) {
+      usedSlots.add(location.slot);
+    }
+  }
 
   for (let slot = 0; slot < graph.assemblySlots; slot += 1) {
     if (!usedSlots.has(slot)) return slot;
