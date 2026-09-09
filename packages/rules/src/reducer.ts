@@ -1,6 +1,7 @@
+import type { GarageBenefit } from './content.js';
 import type { GameEvent } from './events.js';
 import type { PlayerId } from './ids.js';
-import type { GameState, PendingRewardType } from './model.js';
+import type { GameState, PendingRewardType, PlayerState } from './model.js';
 import { getWorkstation } from './workstations.js';
 
 function assertNever(value: never): never {
@@ -19,6 +20,41 @@ function rewardTotal(
 
 function usedBankedShifts(baseShiftsToday: number, shiftsSpentToday: number): number {
   return Math.max(0, shiftsSpentToday - baseShiftsToday);
+}
+
+function applyGarageBenefits(
+  player: PlayerState,
+  benefits: readonly GarageBenefit[],
+): PlayerState {
+  let bankedShifts = player.bankedShifts;
+  let books = player.books;
+  let vouchers = player.vouchers;
+  let genericRedSeats = player.genericRedSeats;
+  let pp = player.pp;
+
+  for (const benefit of benefits) {
+    switch (benefit.kind) {
+      case 'NONE':
+        break;
+      case 'BANKED_SHIFT':
+        bankedShifts += benefit.amount;
+        break;
+      case 'BOOK':
+        books += benefit.amount;
+        break;
+      case 'VOUCHER':
+        vouchers += benefit.amount;
+        break;
+      case 'RED_SEAT':
+        genericRedSeats += benefit.amount;
+        break;
+      case 'PP':
+        pp += benefit.amount;
+        break;
+    }
+  }
+
+  return { ...player, bankedShifts, books, vouchers, genericRedSeats, pp };
 }
 
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
@@ -252,6 +288,43 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         rng: event.rng,
         eventIndex: state.eventIndex + 1,
       };
+    case 'CARS_CLAIMED': {
+      const cars = { ...state.board.cars };
+      const designs = { ...state.board.designs };
+
+      for (const placement of event.placements) {
+        if (placement.replaceCarId !== null) {
+          cars[placement.replaceCarId] = { kind: 'SUPPLY' };
+        }
+        cars[placement.carId] = {
+          kind: 'PLAYER',
+          playerId: event.playerId,
+          area: 'garage',
+          slot: placement.garageSlot,
+        };
+      }
+      for (const move of event.trackMoves) cars[move.carId] = move.location;
+      for (const move of event.designMoves) designs[move.designId] = move.location;
+
+      return {
+        ...state,
+        board: {
+          ...state.board,
+          cars,
+          designs,
+          paceCarPosition: event.paceCarPosition,
+        },
+        players: state.players.map((player) =>
+          player.id === event.playerId
+            ? applyGarageBenefits(
+                { ...player, shiftsSpentToday: player.shiftsSpentToday + event.shiftCost },
+                event.garageBenefits,
+              )
+            : player,
+        ),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,
