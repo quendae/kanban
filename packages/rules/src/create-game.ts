@@ -49,6 +49,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     cars: {},
     parts: {},
     designs: {},
+    designUpgrades: {},
     partValues: Object.fromEntries(PART_TYPE_IDS.map((partType) => [partType, 0])) as BoardState['partValues'],
     activeDemands: [],
     demandDeck: [],
