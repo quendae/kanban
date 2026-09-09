@@ -1,5 +1,5 @@
 import type { CarMove } from './assembly.js';
-import type { KanbanOrderOrientation, ModelId } from './content.js';
+import type { GarageBenefit, KanbanOrderOrientation, ModelId } from './content.js';
 import type { DesignMove } from './design.js';
 import type {
   DemandId,
@@ -12,6 +12,11 @@ import type {
 import type { WarehousePartMove } from './logistics.js';
 import type { ActiveDemandState, PendingRewardType } from './model.js';
 import type { RngState } from './rng.js';
+import type {
+  ClaimCarPlacement,
+  ClaimDesignMove,
+  ClaimTrackMove,
+} from './testing.js';
 import type { WorkstationId } from './workstations.js';
 
 export type GameEvent =
@@ -103,6 +108,17 @@ export type GameEvent =
       readonly demandDeck: readonly DemandId[];
       readonly demandDiscard: readonly DemandId[];
       readonly rng: RngState;
+    }
+  | {
+      readonly id: EventId;
+      readonly type: 'CARS_CLAIMED';
+      readonly playerId: PlayerId;
+      readonly shiftCost: number;
+      readonly placements: readonly ClaimCarPlacement[];
+      readonly trackMoves: readonly ClaimTrackMove[];
+      readonly designMoves: readonly ClaimDesignMove[];
+      readonly garageBenefits: readonly GarageBenefit[];
+      readonly paceCarPosition: number;
     }
   | {
       readonly id: EventId;
