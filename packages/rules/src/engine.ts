@@ -25,10 +25,11 @@ import {
 } from './design.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent } from './events.js';
-import { makeId, type PlayerId } from './ids.js';
+import { makeId, type PlayerId, type UpgradeSpaceId } from './ids.js';
 import { assertInvariants } from './invariants.js';
 import {
   getAssemblyParts,
+  getPlayerDesigns,
   getPlayerParts,
   getRecyclingParts,
   getWarehouseParts,
@@ -41,7 +42,11 @@ import {
 import type { GameState, PlayerState } from './model.js';
 import { getRecyclingSwapPlan } from './recycling.js';
 import { reduceEvent } from './reducer.js';
-import { getPaceCarMeetingTrigger, planCarClaim } from './testing.js';
+import {
+  getPaceCarMeetingTrigger,
+  planCarClaim,
+  planDesignUpgrade,
+} from './testing.js';
 import { getWorkstation, WORKSTATIONS, type WorkstationId } from './workstations.js';
 
 export type CommandResult =
@@ -293,6 +298,14 @@ function claimCarsErrors(
   return plan.ok ? [] : plan.errors;
 }
 
+function upgradeDesignErrors(
+  state: GameState,
+  command: Extract<GameCommand, { readonly type: 'UPGRADE_DESIGN' }>,
+): readonly RuleErrorCode[] {
+  const plan = planDesignUpgrade(state, command);
+  return plan.ok ? [] : plan.errors;
+}
+
 function recyclingSwapErrors(
   state: GameState,
   command: Extract<GameCommand, { readonly type: 'SWAP_RECYCLING_PART' }>,
@@ -382,6 +395,39 @@ function getLegalAssemblyCommands(state: GameState, playerId: PlayerId): GameCom
   return commands;
 }
 
+function getLegalTestingCommands(state: GameState, playerId: PlayerId): GameCommand[] {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (
+    state.phase !== 'WORK' ||
+    state.activeActorId !== playerId ||
+    player?.currentDepartment !== 'TESTING_INNOVATION' ||
+    state.activeDepartmentAction !== null
+  ) {
+    return [];
+  }
+
+  const commands: GameCommand[] = [];
+  const upgradeSpaceIds = Object.keys(state.content.upgradeSpaces) as UpgradeSpaceId[];
+  for (const designId of getPlayerDesigns(state, playerId)) {
+    for (const partId of getPlayerParts(state, playerId)) {
+      for (const upgradeSpaceId of upgradeSpaceIds) {
+        for (const doubleUpgrade of [false, true] as const) {
+          const command: GameCommand = {
+            type: 'UPGRADE_DESIGN',
+            actorId: playerId,
+            designId,
+            partId,
+            upgradeSpaceId,
+            doubleUpgrade,
+          };
+          if (upgradeDesignErrors(state, command).length === 0) commands.push(command);
+        }
+      }
+    }
+  }
+  return commands;
+}
+
 function finishWorkErrors(state: GameState, playerId: PlayerId): readonly RuleErrorCode[] {
   const errors = activeWorkErrors(state, playerId);
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -428,6 +474,7 @@ export function getLegalCommands(
       { type: 'FINISH_WORK', actorId: playerId },
       ...recyclingCommands,
       ...getLegalAssemblyCommands(state, playerId),
+      ...getLegalTestingCommands(state, playerId),
     ];
     if (startDesignSelectionErrors(state, playerId).length === 0) {
       commands.push({ type: 'START_DESIGN_SELECTION', actorId: playerId });
@@ -500,6 +547,8 @@ function validateCommand(
       return provideAssemblyPartErrors(state, command);
     case 'CLAIM_CARS':
       return claimCarsErrors(state, command);
+    case 'UPGRADE_DESIGN':
+      return upgradeDesignErrors(state, command);
     case 'SWAP_RECYCLING_PART':
       return recyclingSwapErrors(state, command);
     case 'FINISH_WORK':
@@ -691,6 +740,28 @@ function resolveCommand(state: GameState, command: GameCommand): readonly GameEv
         });
       }
       return events;
+    }
+    case 'UPGRADE_DESIGN': {
+      const plan = planDesignUpgrade(state, command);
+      if (!plan.ok) {
+        throw new Error(`Validated Design upgrade cannot resolve: ${plan.errors.join(',')}`);
+      }
+      return [
+        {
+          id: makeId('event', state.eventIndex),
+          type: 'DESIGN_UPGRADED',
+          playerId: plan.playerId,
+          designId: plan.designId,
+          partId: plan.partId,
+          upgradeSpaceId: plan.upgradeSpaceId,
+          partType: plan.partType,
+          doubleUpgrade: plan.doubleUpgrade,
+          previousPartValue: plan.previousPartValue,
+          newPartValue: plan.newPartValue,
+          ppAwarded: plan.ppAwarded,
+          benefit: plan.benefit,
+        },
+      ];
     }
     case 'SWAP_RECYCLING_PART': {
       const plan = getRecyclingSwapPlan(
