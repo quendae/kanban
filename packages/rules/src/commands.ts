@@ -110,7 +110,9 @@ export type GameCommand =
   | {
       readonly type: 'FINISH_WORK';
       readonly actorId: PlayerId;
-    }
+    };
+
+export type MeetingCommand =
   | {
       readonly type: 'REVEAL_PET_PROJECT';
       readonly actorId: PlayerId;
@@ -125,3 +127,5 @@ export type GameCommand =
       readonly type: 'PASS_MEETING';
       readonly actorId: PlayerId;
     };
+
+export type RulesCommand = GameCommand | MeetingCommand;
