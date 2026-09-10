@@ -1,14 +1,9 @@
-import type { GameCommand } from './commands.js';
+import type { MeetingCommand, RulesCommand } from './commands.js';
 import type { RuleErrorCode } from './errors.js';
 import type { PerformanceGoalId, PlayerId } from './ids.js';
 import type { GameState } from './model.js';
 
-export type MeetingCommand = Extract<
-  GameCommand,
-  { readonly type: 'REVEAL_PET_PROJECT' | 'SPEAK_AT_MEETING' | 'PASS_MEETING' }
->;
-
-export function isMeetingCommand(command: GameCommand): command is MeetingCommand {
+export function isMeetingCommand(command: RulesCommand): command is MeetingCommand {
   return (
     command.type === 'REVEAL_PET_PROJECT' ||
     command.type === 'SPEAK_AT_MEETING' ||
@@ -108,7 +103,7 @@ export function getMeetingCommandErrors(
 export function getLegalMeetingCommands(
   state: GameState,
   playerId: PlayerId,
-): readonly GameCommand[] {
+): readonly MeetingCommand[] {
   if (
     state.phase !== 'MEETING' ||
     !state.meeting.active ||
@@ -117,7 +112,7 @@ export function getLegalMeetingCommands(
     return [];
   }
 
-  const commands: GameCommand[] = [];
+  const commands: MeetingCommand[] = [];
   if (!state.meeting.revealedPetProjects.includes(playerId)) {
     for (const goalId of state.performanceGoalHands[playerId] ?? []) {
       const command: MeetingCommand = { type: 'REVEAL_PET_PROJECT', actorId: playerId, goalId };
