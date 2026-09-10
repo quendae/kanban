@@ -178,12 +178,7 @@ export function planDesignUpgrade(
     errors.push('INSUFFICIENT_SHIFTS');
   }
 
-  const designLocation = state.board.designs[command.designId];
-  if (
-    designLocation?.kind !== 'PLAYER' ||
-    designLocation.playerId !== command.actorId ||
-    designLocation.area !== 'blueprints'
-  ) {
+  if (!getPlayerDesigns(state, command.actorId).includes(command.designId)) {
     errors.push('UPGRADE_DESIGN_NOT_OWNED');
   }
   const designDefinition = state.content.designs[command.designId];
@@ -288,6 +283,7 @@ export function planCarClaim(
   const trackSet = new Set(trackCars);
   const garageOccupants = getGarageOccupants(state, command.actorId);
   const garageIsFull = garageOccupants.size >= player.garageCapacity;
+  const blueprints = new Set(getPlayerDesigns(state, command.actorId));
   const seenCars = new Set<CarId>();
   const seenDesigns = new Set<DesignId>();
   const seenSlots = new Set<number>();
@@ -305,14 +301,7 @@ export function planCarClaim(
     const cost = snapshot[claim.carId];
     if (cost !== undefined) shiftCost += cost;
 
-    const designLocation = state.board.designs[claim.designId];
-    if (
-      designLocation?.kind !== 'PLAYER' ||
-      designLocation.playerId !== command.actorId ||
-      designLocation.area !== 'blueprints'
-    ) {
-      errors.push('CLAIM_DESIGN_NOT_OWNED');
-    }
+    if (!blueprints.has(claim.designId)) errors.push('CLAIM_DESIGN_NOT_OWNED');
 
     const carDefinition = state.content.cars[claim.carId];
     const designDefinition = state.content.designs[claim.designId];
