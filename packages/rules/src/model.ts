@@ -97,6 +97,8 @@ export interface MeetingState {
   readonly revealedPetProjects: readonly PlayerId[];
   readonly spokenGoalsByPlayer: Readonly<Partial<Record<PlayerId, readonly PerformanceGoalId[]>>>;
   readonly usedSeatsByPlayer: Readonly<Partial<Record<PlayerId, number>>>;
+  readonly replenishmentChoicesPending: readonly PlayerId[];
+  readonly nextGoalChoices: Readonly<Partial<Record<PlayerId, PerformanceGoalId>>>;
 }
 
 export interface BoardState {
@@ -152,6 +154,7 @@ export interface GameState {
   readonly board: BoardState;
   readonly kanbanOrderDeck: readonly KanbanOrderId[];
   readonly performanceGoalDeck: readonly PerformanceGoalId[];
+  readonly performanceGoalDiscard: readonly PerformanceGoalId[];
   readonly performanceGoalHands: Readonly<Partial<Record<PlayerId, readonly PerformanceGoalId[]>>>;
   readonly finalGoalId: FinalGoalId | null;
   readonly sandra: SandraState;
