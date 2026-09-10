@@ -5,6 +5,7 @@ import {
   PART_TYPE_IDS,
   applyCommand,
   createShellGame,
+  getPlayerDesigns,
   isTestedDesign,
   type CarId,
   type DesignId,
@@ -140,6 +141,20 @@ describe('Testing & Innovation — Design upgrades', () => {
     expect(result.events).toContainEqual(expect.objectContaining({
       type: 'DESIGN_UPGRADED', benefit: { kind: 'BOOK', amount: 1 }, previousPartValue: 4, newPartValue: 5, ppAwarded: 2,
     }));
+  });
+
+  it('moves the upgraded Design out of the blueprint hand and frees its blueprint slot', () => {
+    const result = applyCommand(upgradeState(), normalUpgrade);
+    expect(result.status).toBe('ACCEPTED');
+    if (result.status !== 'ACCEPTED') return;
+
+    expect(result.state.board.designs['design:0']).toEqual({
+      kind: 'PLAYER',
+      playerId: 'player:0',
+      area: 'upgraded-designs',
+      slot: 0,
+    });
+    expect(getPlayerDesigns(result.state, 'player:0')).toEqual(['design:1']);
   });
 
   it('caps Part value at 6 while preserving the normal +2 PP reward', () => {
