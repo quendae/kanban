@@ -59,9 +59,7 @@ function createPlayer(index: number): PlayerState {
 }
 
 export function createShellGame(input: CreateShellGameInput): GameState {
-  if (input.seed.trim().length === 0) {
-    throw new Error('Seed must not be blank');
-  }
+  if (input.seed.trim().length === 0) throw new Error('Seed must not be blank');
 
   const players = Array.from({ length: input.playerCount }, (_, index) => createPlayer(index));
   const playerOrder = players.map((player) => player.id);
@@ -104,6 +102,8 @@ export function createShellGame(input: CreateShellGameInput): GameState {
       revealedPetProjects: [],
       spokenGoalsByPlayer: {},
       usedSeatsByPlayer: {},
+      replenishmentChoicesPending: [],
+      nextGoalChoices: {},
     },
     activeActorId: null,
     activeDepartmentAction: null,
@@ -111,13 +111,10 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     board,
     kanbanOrderDeck: [],
     performanceGoalDeck: [],
+    performanceGoalDiscard: [],
     performanceGoalHands: {},
     finalGoalId: null,
-    sandra: {
-      department: 'SANDRA_DESK',
-      workstation: 'F_SANDRA',
-      mode: 'NICE',
-    },
+    sandra: { department: 'SANDRA_DESK', workstation: 'F_SANDRA', mode: 'NICE' },
     pendingRewards: [],
     pendingAwardPlaqueChoice: null,
     selectionOrder: playerOrder,
