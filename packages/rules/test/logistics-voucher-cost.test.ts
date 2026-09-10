@@ -30,6 +30,10 @@ function certifiedLogisticsState(shiftCost: 0 | 1, shiftsSpentToday = 0): GameSt
             bankedShifts: 2,
             shiftsSpentToday,
             certifications: ['LOGISTICS'],
+            training: {
+              ...player.training,
+              LOGISTICS: content.trainingRules.certificationLevel,
+            },
           }
         : {
             ...player,

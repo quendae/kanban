@@ -1,0 +1,246 @@
+.m4-surface {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.18);
+}
+
+.m4-heading,
+.factory-goals-panel > header,
+.m4-event-panel > header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.m4-heading {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.m4-kicker {
+  display: block;
+  color: var(--muted);
+  font-size: 0.6rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.m4-heading h2,
+.factory-goals-panel h3,
+.m4-event-panel h3 {
+  margin: 3px 0 0;
+  line-height: 1.1;
+}
+
+.m4-heading h2 {
+  font-size: 0.98rem;
+}
+
+.m4-readout {
+  color: var(--action);
+  font-size: 0.66rem;
+  font-weight: 750;
+  text-align: right;
+}
+
+.hr-surface {
+  grid-column: 1 / -1;
+}
+
+.training-table {
+  display: grid;
+  gap: 1px;
+  margin-top: 12px;
+  overflow-x: auto;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.training-row {
+  min-width: 940px;
+  display: grid;
+  grid-template-columns: minmax(160px, 1.4fr) repeat(4, minmax(86px, 0.7fr)) minmax(126px, 1fr) minmax(120px, 1fr);
+  gap: 1px;
+  background: var(--line);
+}
+
+.training-row > * {
+  min-width: 0;
+  padding: 9px 10px;
+  background: var(--surface-raised);
+}
+
+.training-row-head > * {
+  color: var(--muted);
+  background: var(--factory-deep);
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.training-row > strong {
+  font-size: 0.72rem;
+}
+
+.training-level {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.training-level b {
+  font-size: 0.92rem;
+}
+
+.training-level small,
+.m4-state-pill,
+.factory-goal span,
+.factory-goal small {
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.m4-state-pill {
+  display: flex;
+  align-items: center;
+}
+
+.factory-goals-panel {
+  margin-top: 14px;
+  padding-top: 13px;
+  border-top: 1px solid var(--line);
+}
+
+.factory-goals-panel h3,
+.m4-event-panel h3 {
+  font-size: 0.78rem;
+}
+
+.factory-goals-panel > header > strong {
+  color: var(--action);
+}
+
+.factory-goals-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+  margin-top: 9px;
+}
+
+.factory-goal {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  background: var(--factory-deep);
+}
+
+.factory-goal > strong {
+  font-size: 0.7rem;
+}
+
+.sandra-week-surface {
+  position: sticky;
+  top: 14px;
+}
+
+.sandra-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 12px 0 0;
+  background: var(--line);
+  border: 1px solid var(--line);
+}
+
+.sandra-readout > div {
+  padding: 9px;
+  background: var(--surface-raised);
+}
+
+.sandra-readout dt {
+  color: var(--muted);
+  font-size: 0.56rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.sandra-readout dd {
+  margin: 4px 0 0;
+  font-size: 0.66rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.m4-event-panel {
+  margin-top: 12px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+
+.m4-event-panel > header > span {
+  color: var(--muted);
+  font-size: 0.58rem;
+}
+
+.audit-results,
+.weekly-score-grid {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.audit-result,
+.weekly-score {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  background: var(--factory-deep);
+  font-size: 0.62rem;
+}
+
+.audit-result span,
+.weekly-score span {
+  color: var(--muted);
+}
+
+.audit-result b,
+.weekly-score strong {
+  color: var(--action);
+}
+
+.weekly-score {
+  grid-template-columns: 1fr auto;
+}
+
+.m4-empty {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 0.63rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .sandra-week-surface {
+    position: static;
+  }
+}
+
+@media (max-width: 720px) {
+  .m4-surface {
+    padding: 12px;
+  }
+
+  .sandra-readout {
+    grid-template-columns: 1fr;
+  }
+}

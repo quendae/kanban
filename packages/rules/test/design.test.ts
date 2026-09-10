@@ -194,7 +194,16 @@ describe('Design Department', () => {
       ...base,
       players: base.players.map((player) =>
         player.id === 'player:0'
-          ? { ...player, certifications: ['DESIGN'], designCapacity: 5, bankedShifts: 2 }
+          ? {
+              ...player,
+              certifications: ['DESIGN'],
+              training: {
+                ...player.training,
+                DESIGN: base.content.trainingRules.certificationLevel,
+              },
+              designCapacity: 5,
+              bankedShifts: 2,
+            }
           : player,
       ),
     };

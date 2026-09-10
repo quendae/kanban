@@ -4,7 +4,7 @@ import {
   RULESET_ID,
 } from './constants.js';
 import { EMPTY_GAME_CONTENT, PART_TYPE_IDS } from './content.js';
-import type { PlayerCount } from './enums.js';
+import type { Department, PlayerCount } from './enums.js';
 import { makeId } from './ids.js';
 import type { BoardState, GameState, PlayerState } from './model.js';
 import { createRng } from './rng.js';
@@ -12,6 +12,18 @@ import { createRng } from './rng.js';
 export interface CreateShellGameInput {
   readonly seed: string;
   readonly playerCount: PlayerCount;
+}
+
+const DEPARTMENTS: readonly Department[] = [
+  'TESTING_INNOVATION',
+  'ASSEMBLY',
+  'LOGISTICS',
+  'DESIGN',
+  'ADMINISTRATION',
+];
+
+function createDepartmentRecord<T>(factory: (department: Department) => T): Record<Department, T> {
+  return Object.fromEntries(DEPARTMENTS.map((department) => [department, factory(department)])) as Record<Department, T>;
 }
 
 function createPlayer(index: number): PlayerState {
@@ -29,11 +41,17 @@ function createPlayer(index: number): PlayerState {
     books: 0,
     vouchers: 0,
     genericRedSeats: 0,
+    conferenceSeatsFaceUp: 1,
+    conferenceSeatsFaceDown: 3,
     partCapacity: BASE_PART_CAPACITY,
     designCapacity: BASE_DESIGN_CAPACITY,
     garageCapacity: 4,
     doubleUpgradeUsed: false,
     certifications: [],
+    certificationPosition: 0,
+    training: createDepartmentRecord(() => 0),
+    expertDepartments: [],
+    micromanagedDepartment: null,
     kanbanOrders: [],
     kanbanOrderIssuedToday: false,
     logisticsVoucherTakenToday: false,
@@ -45,6 +63,8 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     throw new Error('Seed must not be blank');
   }
 
+  const players = Array.from({ length: input.playerCount }, (_, index) => createPlayer(index));
+  const playerOrder = players.map((player) => player.id);
   const board: BoardState = {
     cars: {},
     parts: {},
@@ -57,9 +77,11 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     paceCarPosition: 0,
     nextMeetingThreshold: EMPTY_GAME_CONTENT.testingRules.meetingThresholds[0] ?? 4,
     doubleUpgradedPartTypes: {},
+    trainingTieOrder: createDepartmentRecord(() => [...playerOrder]),
+    expertSeatAvailable: createDepartmentRecord(() => true),
+    awardPlaquePools: createDepartmentRecord(() => []),
+    factoryGoals: [],
   };
-  const players = Array.from({ length: input.playerCount }, (_, index) => createPlayer(index));
-  const selectionOrder = players.map((player) => player.id);
 
   return {
     schemaVersion: 1,
@@ -80,10 +102,12 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     kanbanOrderDeck: [],
     sandra: {
       department: 'SANDRA_DESK',
+      workstation: 'F_SANDRA',
       mode: 'NICE',
     },
     pendingRewards: [],
-    selectionOrder,
+    pendingAwardPlaqueChoice: null,
+    selectionOrder: playerOrder,
     selectionCursor: 0,
     workOrder: [],
     workCursor: 0,

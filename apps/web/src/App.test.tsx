@@ -60,4 +60,19 @@ describe('workstation alley development UI', () => {
     expect(markup).toContain('data-motion-fallback="explicit"');
     expect(markup).toContain('aria-live="polite"');
   });
+
+  it('renders the M4 Human Resources, Factory Goals, Sandra and Week development surfaces', () => {
+    const markup = renderToStaticMarkup(<App />);
+
+    expect(markup).toContain('Human Resources');
+    expect(markup).toContain('Training');
+    expect(markup).toContain('Factory Goals');
+    expect(markup).toContain('Sandra status');
+    expect(markup).toContain('Next visit');
+    expect(markup).toContain('Week');
+    expect(markup).toContain('Production Cycle');
+    expect(markup).toContain('Weekly scoring');
+    expect(markup).toContain('Award Plaques');
+    expect(markup).toContain('Expert Seat');
+  });
 });

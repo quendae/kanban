@@ -170,7 +170,15 @@ describe('Logistics — Collect Car Parts', () => {
       ...base,
       players: base.players.map((player) =>
         player.id === 'player:0'
-          ? { ...player, certifications: ['LOGISTICS'], partCapacity: 6 }
+          ? {
+              ...player,
+              certifications: ['LOGISTICS'],
+              training: {
+                ...player.training,
+                LOGISTICS: base.content.trainingRules.certificationLevel,
+              },
+              partCapacity: 6,
+            }
           : player,
       ),
       board: {

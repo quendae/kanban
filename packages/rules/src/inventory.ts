@@ -47,6 +47,16 @@ export function getPlayerDesigns(state: GameState, playerId: PlayerId): DesignId
   );
 }
 
+export function getPlayerUpgradedDesigns(state: GameState, playerId: PlayerId): DesignId[] {
+  return getOrderedIds(
+    state.board.designs,
+    (location) =>
+      location.kind === 'PLAYER' &&
+      location.playerId === playerId &&
+      location.area === 'upgraded-designs',
+  );
+}
+
 export function getWarehouseParts(state: GameState, partType: PartTypeId): PartId[] {
   return getOrderedIds(
     state.board.parts,

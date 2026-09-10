@@ -1,6 +1,8 @@
 import type { KanbanOrderOrientation, ModelId, PartTypeId } from './content.js';
+import type { Department } from './enums.js';
 import type {
   AssemblyNodeId,
+  AwardPlaqueId,
   CarId,
   DesignId,
   KanbanOrderId,
@@ -8,6 +10,7 @@ import type {
   PlayerId,
   UpgradeSpaceId,
 } from './ids.js';
+import type { MicromanageDepartment } from './model.js';
 import type { WorkstationId } from './workstations.js';
 
 export interface ClaimCarDecision {
@@ -81,6 +84,27 @@ export type GameCommand =
       readonly actorId: PlayerId;
       readonly outgoingPartId: PartId;
       readonly incomingPartId: PartId;
+    }
+  | {
+      readonly type: 'TRAIN_DEPARTMENT';
+      readonly actorId: PlayerId;
+      readonly department: Department;
+      readonly source: 'SHIFT' | 'BOOK';
+    }
+  | {
+      readonly type: 'CHOOSE_AWARD_PLAQUE';
+      readonly actorId: PlayerId;
+      readonly department: Department;
+      readonly plaqueId: AwardPlaqueId;
+    }
+  | {
+      readonly type: 'CONVERT_RED_SEAT';
+      readonly actorId: PlayerId;
+    }
+  | {
+      readonly type: 'START_MICROMANAGE';
+      readonly actorId: PlayerId;
+      readonly department: MicromanageDepartment;
     }
   | {
       readonly type: 'FINISH_WORK';

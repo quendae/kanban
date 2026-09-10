@@ -1,8 +1,10 @@
 import type {
   AssemblyNodeId,
+  AwardPlaqueId,
   CarId,
   DemandId,
   DesignId,
+  FactoryGoalId,
   KanbanOrderId,
   PartId,
   UpgradeSpaceId,
@@ -114,6 +116,31 @@ export interface TestingRulesConfig {
   readonly meetingThresholds: readonly number[];
 }
 
+export interface TrainingRulesConfig {
+  readonly certificationLevel: number;
+  readonly expertLevel: number;
+}
+
+export type AwardPlaqueReward =
+  | { readonly kind: 'BANKED_SHIFT'; readonly amount: 1 }
+  | { readonly kind: 'PP'; readonly amount: 2 }
+  | { readonly kind: 'BOOK'; readonly amount: 1 }
+  | { readonly kind: 'VOUCHER'; readonly amount: 1 };
+
+export interface AwardPlaqueDefinition {
+  readonly id: AwardPlaqueId;
+  readonly reward: AwardPlaqueReward;
+}
+
+export type FactoryGoalCategory = 'CERTIFICATIONS' | 'CARS' | 'UPGRADED_DESIGNS';
+
+export interface FactoryGoalDefinition {
+  readonly id: FactoryGoalId;
+  readonly category: FactoryGoalCategory;
+  readonly threshold: number;
+  readonly initialSeatsByPlayerCount: Readonly<Record<2 | 3 | 4, number>>;
+}
+
 export interface GameRulesConfig {
   readonly logisticsVoucherShiftCost: 0 | 1;
 }
@@ -127,6 +154,11 @@ export const DEFAULT_TESTING_RULES: TestingRulesConfig = {
   maxPartValue: 6,
   claimCostByPosition: [1, 2, 2, 3],
   meetingThresholds: [4, 8, 12],
+};
+
+export const DEFAULT_TRAINING_RULES: TrainingRulesConfig = {
+  certificationLevel: 4,
+  expertLevel: 5,
 };
 
 export interface GameContent {
@@ -144,6 +176,9 @@ export interface GameContent {
   readonly garageBenefits?: readonly GarageBenefit[];
   readonly upgradeSpaces: Readonly<Partial<Record<UpgradeSpaceId, UpgradeSpaceDefinition>>>;
   readonly testingRules: TestingRulesConfig;
+  readonly trainingRules: TrainingRulesConfig;
+  readonly awardPlaques: Readonly<Partial<Record<AwardPlaqueId, AwardPlaqueDefinition>>>;
+  readonly factoryGoals: Readonly<Partial<Record<FactoryGoalId, FactoryGoalDefinition>>>;
 }
 
 export function getGameRules(content: GameContent): GameRulesConfig {
@@ -165,4 +200,7 @@ export const EMPTY_GAME_CONTENT: GameContent = {
   garageBenefits: [],
   upgradeSpaces: {},
   testingRules: DEFAULT_TESTING_RULES,
+  trainingRules: DEFAULT_TRAINING_RULES,
+  awardPlaques: {},
+  factoryGoals: {},
 };

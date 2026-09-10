@@ -1,3 +1,4 @@
+import { getEffectiveWorkDepartment } from './administration.js';
 import { MAX_SHIFTS_PER_DAY } from './constants.js';
 import type { GarageBenefit, PartTypeId } from './content.js';
 import type { GameCommand } from './commands.js';
@@ -13,6 +14,7 @@ import {
   getPlayerDesigns,
   getPlayerGarageCars,
   getPlayerParts,
+  getPlayerUpgradedDesigns,
   getTestTrackCars,
 } from './inventory.js';
 import type { EntityLocation, GameState } from './model.js';
@@ -115,7 +117,7 @@ export function isTestedDesign(
   playerId: PlayerId,
   designId: DesignId,
 ): boolean {
-  if (!getPlayerDesigns(state, playerId).includes(designId)) return false;
+  if (!getPlayerUpgradedDesigns(state, playerId).includes(designId)) return false;
   if (state.board.designUpgrades[designId] === undefined) return false;
   const model = state.content.designs[designId]?.model;
   if (model === undefined) return false;
@@ -167,7 +169,7 @@ export function planDesignUpgrade(
 
   if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
   if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
-  if (player?.currentDepartment !== 'TESTING_INNOVATION') {
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'TESTING_INNOVATION') {
     errors.push('NOT_IN_TESTING_INNOVATION');
   }
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -176,12 +178,7 @@ export function planDesignUpgrade(
     errors.push('INSUFFICIENT_SHIFTS');
   }
 
-  const designLocation = state.board.designs[command.designId];
-  if (
-    designLocation?.kind !== 'PLAYER' ||
-    designLocation.playerId !== command.actorId ||
-    designLocation.area !== 'blueprints'
-  ) {
+  if (!getPlayerDesigns(state, command.actorId).includes(command.designId)) {
     errors.push('UPGRADE_DESIGN_NOT_OWNED');
   }
   const designDefinition = state.content.designs[command.designId];
@@ -274,7 +271,7 @@ export function planCarClaim(
 
   if (state.phase !== 'WORK') errors.push('WRONG_PHASE');
   if (state.activeActorId !== command.actorId) errors.push('NOT_ACTIVE_ACTOR');
-  if (player?.currentDepartment !== 'TESTING_INNOVATION') {
+  if (getEffectiveWorkDepartment(state, command.actorId) !== 'TESTING_INNOVATION') {
     errors.push('NOT_IN_TESTING_INNOVATION');
   }
   if (state.activeDepartmentAction !== null) errors.push('ACTION_IN_PROGRESS');
@@ -286,6 +283,7 @@ export function planCarClaim(
   const trackSet = new Set(trackCars);
   const garageOccupants = getGarageOccupants(state, command.actorId);
   const garageIsFull = garageOccupants.size >= player.garageCapacity;
+  const blueprints = new Set(getPlayerDesigns(state, command.actorId));
   const seenCars = new Set<CarId>();
   const seenDesigns = new Set<DesignId>();
   const seenSlots = new Set<number>();
@@ -303,14 +301,7 @@ export function planCarClaim(
     const cost = snapshot[claim.carId];
     if (cost !== undefined) shiftCost += cost;
 
-    const designLocation = state.board.designs[claim.designId];
-    if (
-      designLocation?.kind !== 'PLAYER' ||
-      designLocation.playerId !== command.actorId ||
-      designLocation.area !== 'blueprints'
-    ) {
-      errors.push('CLAIM_DESIGN_NOT_OWNED');
-    }
+    if (!blueprints.has(claim.designId)) errors.push('CLAIM_DESIGN_NOT_OWNED');
 
     const carDefinition = state.content.cars[claim.carId];
     const designDefinition = state.content.designs[claim.designId];
