@@ -8,7 +8,6 @@ export * from './demand.js';
 export * from './design.js';
 export {
   getBaseShifts,
-  getLegalCommands,
   getMaximumUsableShifts,
 } from './engine.js';
 export * from './enums.js';
@@ -26,7 +25,7 @@ export * from './rng.js';
 export * from './sandra.js';
 export * from './testing.js';
 export * from './weekly-events.js';
-export { applyCommand } from './weekly-engine.js';
+export { applyCommand, getLegalCommands } from './weekly-engine.js';
 export type { CommandResult } from './weekly-engine.js';
 export { reduceEvent } from './weekly-reducer.js';
 export * from './weekly-scoring.js';
