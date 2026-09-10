@@ -48,8 +48,10 @@ function metricState(): GameState {
         'part:1': { kind: 'PLAYER', playerId: 'player:0', area: 'parts', slot: 1 },
       },
       designs: {
-        'design:0': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 0 },
-        'design:1': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 1 },
+        'design:0': { kind: 'PLAYER', playerId: 'player:0', area: 'upgraded-designs', slot: 0 },
+        'design:1': { kind: 'PLAYER', playerId: 'player:0', area: 'upgraded-designs', slot: 1 },
+        'design:2': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 0 },
+        'design:3': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 1 },
       },
       designUpgrades: {
         'design:0': { partType: 'part-type:0', doubleUpgrade: false },
@@ -143,7 +145,7 @@ describe('Original 2014 Sandra', () => {
     expect(reduced.players.map((player) => player.pp)).toEqual([5, 9, 10, 10]);
   });
 
-  it('uses the five Original department performance metrics', () => {
+  it('uses the five Original department performance metrics and keeps upgraded designs separate from blueprints', () => {
     const state = metricState();
     expect(getSandraPerformanceMetric(state, 'player:0', 'TESTING_INNOVATION')).toBe(2);
     expect(getSandraPerformanceMetric(state, 'player:0', 'ASSEMBLY')).toBe(2);
@@ -223,10 +225,45 @@ describe('Original 2014 Sandra', () => {
     expect(first.rng).not.toEqual(state.rng);
   });
 
-  it('resolves Sandra automatically after the last player finishes work and before DAY_ENDED', () => {
-    const shell = createShellGame({ seed: 'sandra-end-day', playerCount: 2 });
+  it('keeps Sandra at her desk on the first day without audit, cleanup or Week-side effects', () => {
+    const shell = createShellGame({ seed: 'sandra-first-day', playerCount: 2 });
     const state: GameState = {
       ...shell,
+      phase: 'WORK',
+      activeActorId: 'player:0',
+      workOrder: ['player:1', 'player:0'],
+      workCursor: 1,
+      players: shell.players.map((player) => {
+        if (player.id === 'player:0') {
+          return {
+            ...player,
+            currentDepartment: 'DESIGN',
+            currentWorkstation: 'D_LEFT',
+            baseShiftsToday: 2,
+          };
+        }
+        return { ...player, done: true };
+      }),
+    };
+
+    const result = applyCommand(state, { type: 'FINISH_WORK', actorId: 'player:0' });
+    expect(result.status).toBe('ACCEPTED');
+    if (result.status !== 'ACCEPTED') return;
+    expect(result.events.map((event) => event.type)).toEqual([
+      'PLAYER_FINISHED_WORK',
+      'DAY_ENDED',
+    ]);
+    expect(result.state.sandra.department).toBe('SANDRA_DESK');
+    expect(result.state.board.paceCarPosition).toBe(0);
+    expect(result.state.week).toBe(0);
+    expect(result.state.dayIndex).toBe(1);
+  });
+
+  it('resolves Sandra automatically after the last player finishes work from the second day onward', () => {
+    const shell = createShellGame({ seed: 'sandra-later-day', playerCount: 2 });
+    const state: GameState = {
+      ...shell,
+      dayIndex: 1,
       phase: 'WORK',
       activeActorId: 'player:0',
       workOrder: ['player:1', 'player:0'],
