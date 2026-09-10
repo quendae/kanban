@@ -5,8 +5,10 @@ import type {
   DemandId,
   DesignId,
   FactoryGoalId,
+  FinalGoalId,
   KanbanOrderId,
   PartId,
+  PerformanceGoalId,
   UpgradeSpaceId,
 } from './ids.js';
 
@@ -39,6 +41,7 @@ export interface PartDefinition {
 export interface CarDefinition {
   readonly id: CarId;
   readonly model: ModelId;
+  readonly finalPP?: number | null;
 }
 
 export type DesignOldestBonus = 'BANKED_SHIFT' | 'BOOK' | null;
@@ -141,6 +144,40 @@ export interface FactoryGoalDefinition {
   readonly initialSeatsByPlayerCount: Readonly<Record<2 | 3 | 4, number>>;
 }
 
+export type GoalMetricKey =
+  | 'CARS'
+  | 'TESTED_DESIGNS'
+  | 'CERTIFICATIONS'
+  | 'TRAINING_TOTAL'
+  | 'PARTS'
+  | 'BLUEPRINTS'
+  | 'UPGRADED_DESIGNS'
+  | 'BANKED_SHIFTS'
+  | 'FACE_UP_SEATS';
+
+export interface GoalCondition {
+  readonly metric: GoalMetricKey;
+  readonly operator: 'GTE' | 'LTE' | 'EQ';
+  readonly value: number;
+}
+
+export interface PerformanceGoalDefinition {
+  readonly id: PerformanceGoalId;
+  readonly condition: GoalCondition;
+  readonly basePP: number;
+  readonly firstMultiplier: number;
+}
+
+export interface FinalGoalAchievementDefinition {
+  readonly condition: GoalCondition;
+  readonly pp: number;
+}
+
+export interface FinalGoalDefinition {
+  readonly id: FinalGoalId;
+  readonly achievements: readonly FinalGoalAchievementDefinition[];
+}
+
 export interface GameRulesConfig {
   readonly logisticsVoucherShiftCost: 0 | 1;
 }
@@ -179,6 +216,8 @@ export interface GameContent {
   readonly trainingRules: TrainingRulesConfig;
   readonly awardPlaques: Readonly<Partial<Record<AwardPlaqueId, AwardPlaqueDefinition>>>;
   readonly factoryGoals: Readonly<Partial<Record<FactoryGoalId, FactoryGoalDefinition>>>;
+  readonly performanceGoals: Readonly<Partial<Record<PerformanceGoalId, PerformanceGoalDefinition>>>;
+  readonly finalGoals: Readonly<Partial<Record<FinalGoalId, FinalGoalDefinition>>>;
 }
 
 export function getGameRules(content: GameContent): GameRulesConfig {
@@ -203,4 +242,6 @@ export const EMPTY_GAME_CONTENT: GameContent = {
   trainingRules: DEFAULT_TRAINING_RULES,
   awardPlaques: {},
   factoryGoals: {},
+  performanceGoals: {},
+  finalGoals: {},
 };
