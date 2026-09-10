@@ -81,6 +81,7 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     expertSeatAvailable: createDepartmentRecord(() => true),
     awardPlaquePools: createDepartmentRecord(() => []),
     factoryGoals: [],
+    performanceGoalDisplay: [],
   };
 
   return {
@@ -95,11 +96,23 @@ export function createShellGame(input: CreateShellGameInput): GameState {
     week: 0,
     productionCycle: 0,
     meetingScheduled: false,
+    meeting: {
+      active: false,
+      speakerOrder: [],
+      speakerCursor: 0,
+      consecutivePasses: 0,
+      revealedPetProjects: [],
+      spokenGoalsByPlayer: {},
+      usedSeatsByPlayer: {},
+    },
     activeActorId: null,
     activeDepartmentAction: null,
     players,
     board,
     kanbanOrderDeck: [],
+    performanceGoalDeck: [],
+    performanceGoalHands: {},
+    finalGoalId: null,
     sandra: {
       department: 'SANDRA_DESK',
       workstation: 'F_SANDRA',
