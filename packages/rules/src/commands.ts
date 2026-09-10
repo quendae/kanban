@@ -7,6 +7,7 @@ import type {
   DesignId,
   KanbanOrderId,
   PartId,
+  PerformanceGoalId,
   PlayerId,
   UpgradeSpaceId,
 } from './ids.js';
@@ -108,5 +109,19 @@ export type GameCommand =
     }
   | {
       readonly type: 'FINISH_WORK';
+      readonly actorId: PlayerId;
+    }
+  | {
+      readonly type: 'REVEAL_PET_PROJECT';
+      readonly actorId: PlayerId;
+      readonly goalId: PerformanceGoalId;
+    }
+  | {
+      readonly type: 'SPEAK_AT_MEETING';
+      readonly actorId: PlayerId;
+      readonly goalId: PerformanceGoalId;
+    }
+  | {
+      readonly type: 'PASS_MEETING';
       readonly actorId: PlayerId;
     };
