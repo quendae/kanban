@@ -6,8 +6,10 @@ import type {
   DemandId,
   DesignId,
   FactoryGoalId,
+  FinalGoalId,
   KanbanOrderId,
   PartId,
+  PerformanceGoalId,
   PlayerId,
 } from './ids.js';
 import type { RngState } from './rng.js';
@@ -87,6 +89,16 @@ export interface PendingAwardPlaqueChoice {
   readonly department: Department;
 }
 
+export interface MeetingState {
+  readonly active: boolean;
+  readonly speakerOrder: readonly PlayerId[];
+  readonly speakerCursor: number;
+  readonly consecutivePasses: number;
+  readonly revealedPetProjects: readonly PlayerId[];
+  readonly spokenGoalsByPlayer: Readonly<Partial<Record<PlayerId, readonly PerformanceGoalId[]>>>;
+  readonly usedSeatsByPlayer: Readonly<Partial<Record<PlayerId, number>>>;
+}
+
 export interface BoardState {
   readonly cars: Readonly<Partial<Record<CarId, EntityLocation>>>;
   readonly parts: Readonly<Partial<Record<PartId, EntityLocation>>>;
@@ -103,6 +115,7 @@ export interface BoardState {
   readonly expertSeatAvailable: Readonly<Record<Department, boolean>>;
   readonly awardPlaquePools: Readonly<Record<Department, readonly AwardPlaqueId[]>>;
   readonly factoryGoals: readonly ActiveFactoryGoalState[];
+  readonly performanceGoalDisplay: readonly PerformanceGoalId[];
 }
 
 export type PendingRewardType = 'BANKED_SHIFT' | 'BOOK' | 'VOUCHER';
@@ -132,11 +145,15 @@ export interface GameState {
   readonly week: number;
   readonly productionCycle: number;
   readonly meetingScheduled: boolean;
+  readonly meeting: MeetingState;
   readonly activeActorId: PlayerId | 'sandra' | null;
   readonly activeDepartmentAction: ActiveDepartmentAction;
   readonly players: readonly PlayerState[];
   readonly board: BoardState;
   readonly kanbanOrderDeck: readonly KanbanOrderId[];
+  readonly performanceGoalDeck: readonly PerformanceGoalId[];
+  readonly performanceGoalHands: Readonly<Partial<Record<PlayerId, readonly PerformanceGoalId[]>>>;
+  readonly finalGoalId: FinalGoalId | null;
   readonly sandra: SandraState;
   readonly pendingRewards: readonly PendingReward[];
   readonly pendingAwardPlaqueChoice: PendingAwardPlaqueChoice | null;
