@@ -1,4 +1,4 @@
-import type { GameCommand } from './commands.js';
+import type { GameCommand, MeetingCommand, RulesCommand } from './commands.js';
 import {
   applyCommand as applyBaseCommand,
   getLegalCommands as getBaseLegalCommands,
@@ -13,7 +13,6 @@ import {
   getMeetingCommandErrors,
   getMeetingSpeakerOrder,
   isMeetingCommand,
-  type MeetingCommand,
 } from './meeting.js';
 import type { GameState } from './model.js';
 import { reduceEvent } from './weekly-reducer.js';
@@ -105,13 +104,13 @@ function applyMeetingCommand(state: GameState, command: MeetingCommand): Command
   return { status: 'ACCEPTED', state: nextState, events: [event] };
 }
 
-export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
+export function getLegalCommands(state: GameState, playerId: PlayerId): readonly RulesCommand[] {
   return state.phase === 'MEETING'
     ? getLegalMeetingCommands(state, playerId)
     : getBaseLegalCommands(state, playerId);
 }
 
-export function applyCommand(state: GameState, command: GameCommand): CommandResult {
+export function applyCommand(state: GameState, command: RulesCommand): CommandResult {
   if (isMeetingCommand(command)) return applyMeetingCommand(state, command);
 
   const planned = applyBaseCommand(state, command);
