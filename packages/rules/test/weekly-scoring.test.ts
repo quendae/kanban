@@ -121,10 +121,11 @@ describe('Original 2014 End-of-Week scoring', () => {
     ]);
   });
 
-  it('advances Week and applies the weekly breakdown when Sandra visits Administration', () => {
+  it('advances Week and applies the weekly breakdown when Sandra visits Administration after the first day', () => {
     const source = weeklyState();
     const state: GameState = {
       ...source,
+      dayIndex: 1,
       phase: 'WORK',
       week: 1,
       activeActorId: 'player:0',
