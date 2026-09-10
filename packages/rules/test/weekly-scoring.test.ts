@@ -44,10 +44,10 @@ function weeklyState(): GameState {
     'car:3': { kind: 'PLAYER', playerId: 'player:2', area: 'garage', slot: 0 },
   };
   const designs: Partial<Record<DesignId, EntityLocation>> = {
-    'design:0': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 0 },
-    'design:1': { kind: 'PLAYER', playerId: 'player:1', area: 'blueprints', slot: 0 },
-    'design:2': { kind: 'PLAYER', playerId: 'player:1', area: 'blueprints', slot: 1 },
-    'design:3': { kind: 'PLAYER', playerId: 'player:0', area: 'blueprints', slot: 1 },
+    'design:0': { kind: 'PLAYER', playerId: 'player:0', area: 'upgraded-designs', slot: 0 },
+    'design:1': { kind: 'PLAYER', playerId: 'player:1', area: 'upgraded-designs', slot: 0 },
+    'design:2': { kind: 'PLAYER', playerId: 'player:1', area: 'upgraded-designs', slot: 1 },
+    'design:3': { kind: 'PLAYER', playerId: 'player:0', area: 'upgraded-designs', slot: 1 },
   };
 
   return {
