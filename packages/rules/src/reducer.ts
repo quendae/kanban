@@ -38,6 +38,20 @@ function applyGarageBenefits(player: PlayerState, benefits: readonly GarageBenef
   return { ...player, bankedShifts, books, vouchers, genericRedSeats, pp };
 }
 
+function nextPlayerDesignAreaSlot(state: GameState, playerId: PlayerId, area: string): number {
+  let maxSlot = -1;
+  for (const location of Object.values(state.board.designs)) {
+    if (
+      location?.kind === 'PLAYER' &&
+      location.playerId === playerId &&
+      location.area === area
+    ) {
+      maxSlot = Math.max(maxSlot, location.slot);
+    }
+  }
+  return maxSlot + 1;
+}
+
 export function reduceEvent(state: GameState, event: GameEvent): GameState {
   switch (event.type) {
     case 'GAME_STARTED':
@@ -146,12 +160,22 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
     }
     case 'MEETING_SCHEDULED':
       return { ...state, meetingScheduled: true, eventIndex: state.eventIndex + 1 };
-    case 'DESIGN_UPGRADED':
+    case 'DESIGN_UPGRADED': {
+      const upgradedSlot = nextPlayerDesignAreaSlot(state, event.playerId, 'upgraded-designs');
       return {
         ...state,
         board: {
           ...state.board,
           parts: { ...state.board.parts, [event.partId]: { kind: 'BOARD', area: event.upgradeSpaceId, slot: 0 } },
+          designs: {
+            ...state.board.designs,
+            [event.designId]: {
+              kind: 'PLAYER',
+              playerId: event.playerId,
+              area: 'upgraded-designs',
+              slot: upgradedSlot,
+            },
+          },
           designUpgrades: { ...state.board.designUpgrades, [event.designId]: { partType: event.partType, doubleUpgrade: event.doubleUpgrade } },
           partValues: { ...state.board.partValues, [event.partType]: event.newPartValue },
           doubleUpgradedPartTypes: event.doubleUpgrade ? { ...state.board.doubleUpgradedPartTypes, [event.partType]: event.playerId } : state.board.doubleUpgradedPartTypes,
@@ -159,6 +183,7 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         players: state.players.map((player) => player.id === event.playerId ? applyGarageBenefits({ ...player, shiftsSpentToday: player.shiftsSpentToday + 1, pp: player.pp + event.ppAwarded, doubleUpgradeUsed: player.doubleUpgradeUsed || event.doubleUpgrade }, [event.benefit]) : player),
         eventIndex: state.eventIndex + 1,
       };
+    }
     case 'RECYCLING_PART_SWAPPED':
       return {
         ...state,
