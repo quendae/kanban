@@ -77,7 +77,7 @@ describe('Working Phase', () => {
     expect(result.state.phase).toBe('WORK');
   });
 
-  it('keeps pending rewards unavailable until the final worker ends the day', () => {
+  it('keeps pending rewards unavailable until the final worker ends the first day', () => {
     const source = workingGame();
     const state = {
       ...source,
@@ -101,9 +101,6 @@ describe('Working Phase', () => {
     if (last.status !== 'ACCEPTED') return;
     expect(last.events.map((event) => event.type)).toEqual([
       'PLAYER_FINISHED_WORK',
-      'SANDRA_MOVED',
-      'SANDRA_AUDIT_RESOLVED',
-      'SANDRA_DEPARTMENT_TASK_RESOLVED',
       'DAY_ENDED',
     ]);
     expect(last.state.players[0]).toMatchObject({
