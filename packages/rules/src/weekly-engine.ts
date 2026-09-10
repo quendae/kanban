@@ -8,10 +8,10 @@ import type { GameEvent as BaseGameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './m4-invariants.js';
 import {
-  getInitialPerformanceGoalScore,
   getLegalMeetingCommands,
   getMeetingCommandErrors,
   getMeetingSpeakerOrder,
+  getPerformanceGoalScore,
   isMeetingCommand,
 } from './meeting.js';
 import type { GameState } from './model.js';
@@ -84,7 +84,7 @@ function resolveMeetingCommand(state: GameState, command: MeetingCommand): GameE
         type: 'MEETING_GOAL_SCORED',
         playerId: command.actorId,
         goalId: command.goalId,
-        ppAwarded: getInitialPerformanceGoalScore(state, command.goalId),
+        ppAwarded: getPerformanceGoalScore(state, command.actorId, command.goalId),
       };
     case 'PASS_MEETING':
       return {
