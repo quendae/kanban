@@ -1,5 +1,5 @@
 import type { GameEvent as BaseGameEvent } from './events.js';
-import type { EventId } from './ids.js';
+import type { EventId, PlayerId } from './ids.js';
 import type { PlayerWeeklyScore } from './weekly-scoring.js';
 
 export type { BaseGameEvent };
@@ -17,5 +17,12 @@ export interface EndOfWeekScoredEvent {
   readonly scores: readonly PlayerWeeklyScore[];
 }
 
+export interface MeetingStartedEvent {
+  readonly id: EventId;
+  readonly type: 'MEETING_STARTED';
+  readonly speakerOrder: readonly PlayerId[];
+}
+
 export type WeeklyScoringEvent = WeekAdvancedEvent | EndOfWeekScoredEvent;
-export type GameEvent = BaseGameEvent | WeeklyScoringEvent;
+export type MeetingEvent = MeetingStartedEvent;
+export type GameEvent = BaseGameEvent | WeeklyScoringEvent | MeetingEvent;
