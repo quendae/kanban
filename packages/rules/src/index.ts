@@ -19,6 +19,7 @@ export * from './ids.js';
 export * from './inventory.js';
 export * from './m4-invariants.js';
 export * from './logistics.js';
+export * from './meeting.js';
 export * from './model.js';
 export * from './recycling.js';
 export * from './rng.js';
