@@ -5,6 +5,7 @@ import {
   getPlayerDesigns,
   getPlayerGarageCars,
   getPlayerParts,
+  getPlayerUpgradedDesigns,
   getWarehouseParts,
 } from './inventory.js';
 import type { EntityLocation, GameState } from './model.js';
@@ -101,9 +102,7 @@ export function getSandraPerformanceMetric(
 
   switch (department) {
     case 'TESTING_INNOVATION':
-      return getPlayerDesigns(state, playerId).filter(
-        (designId) => state.board.designUpgrades[designId] !== undefined,
-      ).length;
+      return getPlayerUpgradedDesigns(state, playerId).length;
     case 'ASSEMBLY':
       return getPlayerGarageCars(state, playerId).length;
     case 'LOGISTICS':
