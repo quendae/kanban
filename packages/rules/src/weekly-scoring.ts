@@ -20,7 +20,7 @@ export interface PlayerWeeklyScore {
 
 function getUpgradeOwner(state: GameState, designId: DesignId): PlayerId | null {
   const location = state.board.designs[designId];
-  if (location?.kind !== 'PLAYER' || location.area !== 'blueprints') return null;
+  if (location?.kind !== 'PLAYER' || location.area !== 'upgraded-designs') return null;
   return location.playerId;
 }
 
