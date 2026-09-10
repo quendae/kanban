@@ -24,6 +24,22 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'MEETING_STARTED':
+      return {
+        ...state,
+        phase: 'MEETING',
+        meeting: {
+          active: true,
+          speakerOrder: event.speakerOrder,
+          speakerCursor: 0,
+          consecutivePasses: 0,
+          revealedPetProjects: [],
+          spokenGoalsByPlayer: {},
+          usedSeatsByPlayer: {},
+        },
+        activeActorId: event.speakerOrder[0] ?? null,
+        eventIndex: state.eventIndex + 1,
+      };
     default:
       return reduceBaseEvent(state, event as BaseGameEvent);
   }
