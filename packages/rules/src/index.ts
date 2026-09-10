@@ -13,6 +13,7 @@ export {
 export * from './enums.js';
 export * from './errors.js';
 export * from './factory-goals.js';
+export * from './goal-metrics.js';
 export * from './hr.js';
 export * from './ids.js';
 export * from './inventory.js';
