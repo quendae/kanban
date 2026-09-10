@@ -104,10 +104,12 @@ function applyMeetingCommand(state: GameState, command: MeetingCommand): Command
   return { status: 'ACCEPTED', state: nextState, events: [event] };
 }
 
-export function getLegalCommands(state: GameState, playerId: PlayerId): readonly RulesCommand[] {
-  return state.phase === 'MEETING'
-    ? getLegalMeetingCommands(state, playerId)
-    : getBaseLegalCommands(state, playerId);
+export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
+  if (state.phase === 'MEETING') {
+    // Temporary M5 adapter: the dedicated Board Room in Task 9 consumes RulesCommand directly.
+    return getLegalMeetingCommands(state, playerId) as unknown as readonly GameCommand[];
+  }
+  return getBaseLegalCommands(state, playerId);
 }
 
 export function applyCommand(state: GameState, command: RulesCommand): CommandResult {
