@@ -14,6 +14,7 @@ import {
   getPlayerDesigns,
   getPlayerGarageCars,
   getPlayerParts,
+  getPlayerUpgradedDesigns,
   getTestTrackCars,
 } from './inventory.js';
 import type { EntityLocation, GameState } from './model.js';
@@ -116,7 +117,7 @@ export function isTestedDesign(
   playerId: PlayerId,
   designId: DesignId,
 ): boolean {
-  if (!getPlayerDesigns(state, playerId).includes(designId)) return false;
+  if (!getPlayerUpgradedDesigns(state, playerId).includes(designId)) return false;
   if (state.board.designUpgrades[designId] === undefined) return false;
   const model = state.content.designs[designId]?.model;
   if (model === undefined) return false;
