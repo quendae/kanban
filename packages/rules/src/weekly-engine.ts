@@ -1,10 +1,11 @@
 import type { GameCommand } from './commands.js';
 import { applyCommand as applyBaseCommand } from './engine.js';
 import type { RuleErrorCode } from './errors.js';
+import type { GameEvent as BaseGameEvent } from './events.js';
 import { makeId } from './ids.js';
 import { assertInvariants } from './m4-invariants.js';
+import { getMeetingSpeakerOrder } from './meeting.js';
 import type { GameState } from './model.js';
-import type { GameEvent as BaseGameEvent } from './events.js';
 import { reduceEvent } from './weekly-reducer.js';
 import type { GameEvent } from './weekly-events.js';
 import { scoreEndOfWeek } from './weekly-scoring.js';
@@ -45,6 +46,20 @@ function isFirstDaySandraSideEffect(event: BaseGameEvent): boolean {
   );
 }
 
+function appendMeetingStartIfScheduled(
+  state: GameState,
+  events: GameEvent[],
+): GameState {
+  if (!state.meetingScheduled || state.meeting.active) return state;
+  const meetingEvent: GameEvent = {
+    id: makeId('event', state.eventIndex),
+    type: 'MEETING_STARTED',
+    speakerOrder: getMeetingSpeakerOrder(state),
+  };
+  events.push(meetingEvent);
+  return reduceEvent(state, meetingEvent);
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const planned = applyBaseCommand(state, command);
   if (planned.status === 'REJECTED') return planned;
@@ -81,6 +96,10 @@ export function applyCommand(state: GameState, command: GameCommand): CommandRes
       };
       events.push(scoringEvent);
       nextState = reduceEvent(nextState, scoringEvent);
+    }
+
+    if (event.type === 'DAY_ENDED') {
+      nextState = appendMeetingStartIfScheduled(nextState, events);
     }
   }
 
