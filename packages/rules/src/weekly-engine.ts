@@ -1,10 +1,20 @@
 import type { GameCommand } from './commands.js';
-import { applyCommand as applyBaseCommand } from './engine.js';
+import {
+  applyCommand as applyBaseCommand,
+  getLegalCommands as getBaseLegalCommands,
+} from './engine.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent as BaseGameEvent } from './events.js';
-import { makeId } from './ids.js';
+import { makeId, type PlayerId } from './ids.js';
 import { assertInvariants } from './m4-invariants.js';
-import { getMeetingSpeakerOrder } from './meeting.js';
+import {
+  getInitialPerformanceGoalScore,
+  getLegalMeetingCommands,
+  getMeetingCommandErrors,
+  getMeetingSpeakerOrder,
+  isMeetingCommand,
+  type MeetingCommand,
+} from './meeting.js';
 import type { GameState } from './model.js';
 import { reduceEvent } from './weekly-reducer.js';
 import type { GameEvent } from './weekly-events.js';
@@ -60,7 +70,50 @@ function appendMeetingStartIfScheduled(
   return reduceEvent(state, meetingEvent);
 }
 
+function resolveMeetingCommand(state: GameState, command: MeetingCommand): GameEvent {
+  switch (command.type) {
+    case 'REVEAL_PET_PROJECT':
+      return {
+        id: makeId('event', state.eventIndex),
+        type: 'PET_PROJECT_REVEALED',
+        playerId: command.actorId,
+        goalId: command.goalId,
+      };
+    case 'SPEAK_AT_MEETING':
+      return {
+        id: makeId('event', state.eventIndex),
+        type: 'MEETING_GOAL_SCORED',
+        playerId: command.actorId,
+        goalId: command.goalId,
+        ppAwarded: getInitialPerformanceGoalScore(state, command.goalId),
+      };
+    case 'PASS_MEETING':
+      return {
+        id: makeId('event', state.eventIndex),
+        type: 'MEETING_PLAYER_PASSED',
+        playerId: command.actorId,
+      };
+  }
+}
+
+function applyMeetingCommand(state: GameState, command: MeetingCommand): CommandResult {
+  const errors = getMeetingCommandErrors(state, command);
+  if (errors.length > 0) return { status: 'REJECTED', state, errors };
+  const event = resolveMeetingCommand(state, command);
+  const nextState = reduceEvent(state, event);
+  assertInvariants(nextState);
+  return { status: 'ACCEPTED', state: nextState, events: [event] };
+}
+
+export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
+  return state.phase === 'MEETING'
+    ? getLegalMeetingCommands(state, playerId)
+    : getBaseLegalCommands(state, playerId);
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
+  if (isMeetingCommand(command)) return applyMeetingCommand(state, command);
+
   const planned = applyBaseCommand(state, command);
   if (planned.status === 'REJECTED') return planned;
 
