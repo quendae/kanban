@@ -28,14 +28,35 @@ function withCurrentEventId<T extends BaseGameEvent>(state: GameState, event: T)
   } as T;
 }
 
+function isFirstDayEndOfWork(state: GameState, command: GameCommand): boolean {
+  return (
+    state.dayIndex === 0 &&
+    command.type === 'FINISH_WORK' &&
+    state.workCursor === state.workOrder.length - 1
+  );
+}
+
+function isFirstDaySandraSideEffect(event: BaseGameEvent): boolean {
+  return (
+    event.type === 'SANDRA_MOVED' ||
+    event.type === 'SANDRA_AUDIT_RESOLVED' ||
+    event.type === 'SANDRA_DEPARTMENT_TASK_RESOLVED' ||
+    event.type === 'MEETING_SCHEDULED'
+  );
+}
+
 export function applyCommand(state: GameState, command: GameCommand): CommandResult {
   const planned = applyBaseCommand(state, command);
   if (planned.status === 'REJECTED') return planned;
 
+  const rawEvents = isFirstDayEndOfWork(state, command)
+    ? planned.events.filter((event) => !isFirstDaySandraSideEffect(event))
+    : planned.events;
+
   const events: GameEvent[] = [];
   let nextState = state;
 
-  for (const rawEvent of planned.events) {
+  for (const rawEvent of rawEvents) {
     const event = withCurrentEventId(nextState, rawEvent);
     events.push(event);
     nextState = reduceEvent(nextState, event);
