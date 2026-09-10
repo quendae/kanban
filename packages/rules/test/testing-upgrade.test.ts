@@ -56,6 +56,7 @@ function upgradeState(options?: {
   readonly partValue?: number;
   readonly certified?: boolean;
   readonly garageCar?: boolean;
+  readonly claimableCar?: boolean;
   readonly occupiedSpace?: boolean;
   readonly doubleUpgradeUsed?: boolean;
   readonly globallyReserved?: boolean;
@@ -72,7 +73,9 @@ function upgradeState(options?: {
   const cars: Partial<Record<CarId, EntityLocation>> = {
     'car:0': options?.garageCar
       ? { kind: 'PLAYER', playerId: 'player:0', area: 'garage', slot: 0 }
-      : { kind: 'SUPPLY' },
+      : options?.claimableCar
+        ? { kind: 'BOARD', area: 'test-track', slot: 0 }
+        : { kind: 'SUPPLY' },
     'car:1': { kind: 'SUPPLY' },
   };
   const designs: Partial<Record<DesignId, EntityLocation>> = {
@@ -155,6 +158,20 @@ describe('Testing & Innovation — Design upgrades', () => {
       slot: 0,
     });
     expect(getPlayerDesigns(result.state, 'player:0')).toEqual(['design:1']);
+  });
+
+  it('does not allow an upgraded Design to be spent again as a Claim Cars blueprint', () => {
+    const upgraded = applyCommand(upgradeState({ claimableCar: true }), normalUpgrade);
+    expect(upgraded.status).toBe('ACCEPTED');
+    if (upgraded.status !== 'ACCEPTED') return;
+
+    const claim = applyCommand(upgraded.state, {
+      type: 'CLAIM_CARS',
+      actorId: 'player:0',
+      claims: [{ carId: 'car:0', designId: 'design:0', garageSlot: 0 }],
+    });
+    expect(claim.status).toBe('REJECTED');
+    if (claim.status === 'REJECTED') expect(claim.errors).toContain('CLAIM_DESIGN_NOT_OWNED');
   });
 
   it('caps Part value at 6 while preserving the normal +2 PP reward', () => {
