@@ -1,5 +1,6 @@
 import type { MeetingCommand, RulesCommand } from './commands.js';
 import type { RuleErrorCode } from './errors.js';
+import { evaluateGoalCondition } from './goal-metrics.js';
 import type { PerformanceGoalId, PlayerId } from './ids.js';
 import type { GameState } from './model.js';
 
@@ -45,13 +46,24 @@ function revealPetProjectErrors(
   return errors;
 }
 
-export function getInitialPerformanceGoalScore(
+function countPriorSpeakers(state: GameState, goalId: PerformanceGoalId): number {
+  return Object.values(state.meeting.spokenGoalsByPlayer).reduce(
+    (count, goals) => count + (goals?.includes(goalId) ? 1 : 0),
+    0,
+  );
+}
+
+export function getPerformanceGoalScore(
   state: GameState,
+  playerId: PlayerId,
   goalId: PerformanceGoalId,
 ): number {
   const goal = state.content.performanceGoals[goalId];
   if (!goal) return 0;
-  return Math.max(0, goal.basePP * goal.firstMultiplier);
+  if (!evaluateGoalCondition(state, playerId, goal.condition)) return 0;
+
+  const multiplier = Math.max(0, goal.firstMultiplier - countPriorSpeakers(state, goalId));
+  return goal.basePP * multiplier;
 }
 
 function speakAtMeetingErrors(
@@ -72,7 +84,10 @@ function speakAtMeetingErrors(
   if ((player?.conferenceSeatsFaceUp ?? 0) < 1) {
     errors.push('MEETING_FACE_UP_SEAT_REQUIRED');
   }
-  if (state.content.performanceGoals[command.goalId] && getInitialPerformanceGoalScore(state, command.goalId) <= 0) {
+  if (
+    state.content.performanceGoals[command.goalId] &&
+    getPerformanceGoalScore(state, command.actorId, command.goalId) <= 0
+  ) {
     errors.push('MEETING_GOAL_EXHAUSTED');
   }
   return errors;
