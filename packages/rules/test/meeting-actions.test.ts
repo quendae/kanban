@@ -52,6 +52,8 @@ function meetingState(options: {
         ? { 'player:0': [CENTRAL_GOAL] }
         : {},
       usedSeatsByPlayer: {},
+      replenishmentChoicesPending: [],
+      nextGoalChoices: {},
     },
     board: {
       ...shell.board,
