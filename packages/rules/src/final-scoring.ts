@@ -39,6 +39,24 @@ export interface PlayerFinalScore {
   readonly breakdown: readonly FinalScoreBreakdownEntry[];
 }
 
+export type WinnerCriterion =
+  | 'PP'
+  | 'CARS'
+  | 'TESTED_DESIGNS'
+  | 'BANKED_SHIFTS'
+  | 'CERTIFICATIONS';
+
+export interface WinnerResolutionStep {
+  readonly criterion: WinnerCriterion;
+  readonly highest: number;
+  readonly remainingPlayerIds: readonly PlayerId[];
+}
+
+export interface WinnerResolution {
+  readonly winnerIds: readonly PlayerId[];
+  readonly steps: readonly WinnerResolutionStep[];
+}
+
 const DEPARTMENTS: readonly Department[] = [
   'TESTING_INNOVATION',
   'ASSEMBLY',
@@ -180,4 +198,45 @@ export function scoreFinalGame(
       breakdown,
     };
   });
+}
+
+function testedDesignCount(state: GameState, playerId: PlayerId): number {
+  return getPlayerUpgradedDesigns(state, playerId).filter((designId) =>
+    isTestedDesign(state, playerId, designId),
+  ).length;
+}
+
+function criterionValue(state: GameState, playerId: PlayerId, criterion: WinnerCriterion): number {
+  const player = state.players.find((candidate) => candidate.id === playerId);
+  if (!player) return 0;
+  switch (criterion) {
+    case 'PP': return player.pp;
+    case 'CARS': return getPlayerGarageCars(state, playerId).length;
+    case 'TESTED_DESIGNS': return testedDesignCount(state, playerId);
+    case 'BANKED_SHIFTS': return player.bankedShifts;
+    case 'CERTIFICATIONS': return player.certifications.length;
+  }
+}
+
+export function resolveWinners(state: GameState): WinnerResolution {
+  const criteria: readonly WinnerCriterion[] = [
+    'PP',
+    'CARS',
+    'TESTED_DESIGNS',
+    'BANKED_SHIFTS',
+    'CERTIFICATIONS',
+  ];
+  let remaining = state.players.map((player) => player.id);
+  const steps: WinnerResolutionStep[] = [];
+
+  for (const criterion of criteria) {
+    const highest = Math.max(...remaining.map((playerId) => criterionValue(state, playerId, criterion)));
+    remaining = remaining.filter(
+      (playerId) => criterionValue(state, playerId, criterion) === highest,
+    );
+    steps.push({ criterion, highest, remainingPlayerIds: remaining });
+    if (remaining.length <= 1) break;
+  }
+
+  return { winnerIds: remaining, steps };
 }
