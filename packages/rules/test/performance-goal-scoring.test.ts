@@ -52,6 +52,8 @@ function scoringState(priorSpeakers = 0): GameState {
         priorIds.map((playerId) => [playerId, [GOAL]]),
       ) as Partial<Record<PlayerId, readonly PerformanceGoalId[]>>,
       usedSeatsByPlayer: {},
+      replenishmentChoicesPending: [],
+      nextGoalChoices: {},
     },
     board: {
       ...shell.board,
