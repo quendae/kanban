@@ -13,6 +13,7 @@ import {
   getMeetingSpeakerOrder,
   getPerformanceGoalScore,
   isMeetingCommand,
+  planMeetingCompletion,
 } from './meeting.js';
 import type { GameState } from './model.js';
 import { reduceEvent } from './weekly-reducer.js';
@@ -92,16 +93,58 @@ function resolveMeetingCommand(state: GameState, command: MeetingCommand): GameE
         type: 'MEETING_PLAYER_PASSED',
         playerId: command.actorId,
       };
+    case 'CHOOSE_NEXT_MEETING_GOAL':
+      return {
+        id: makeId('event', state.eventIndex),
+        type: 'NEXT_MEETING_GOAL_CHOSEN',
+        playerId: command.actorId,
+        goalId: command.goalId,
+      };
   }
 }
 
 function applyMeetingCommand(state: GameState, command: MeetingCommand): CommandResult {
   const errors = getMeetingCommandErrors(state, command);
   if (errors.length > 0) return { status: 'REJECTED', state, errors };
-  const event = resolveMeetingCommand(state, command);
-  const nextState = reduceEvent(state, event);
+
+  const events: GameEvent[] = [];
+  const primaryEvent = resolveMeetingCommand(state, command);
+  events.push(primaryEvent);
+  let nextState = reduceEvent(state, primaryEvent);
+
+  if (
+    primaryEvent.type === 'MEETING_PLAYER_PASSED' &&
+    nextState.meeting.consecutivePasses >= nextState.playerCount
+  ) {
+    const replenishmentEvent: GameEvent = {
+      id: makeId('event', nextState.eventIndex),
+      type: 'MEETING_REPLENISHMENT_STARTED',
+      playerIds: nextState.meeting.speakerOrder,
+    };
+    events.push(replenishmentEvent);
+    nextState = reduceEvent(nextState, replenishmentEvent);
+  }
+
+  if (
+    primaryEvent.type === 'NEXT_MEETING_GOAL_CHOSEN' &&
+    nextState.meeting.replenishmentChoicesPending.length === 0
+  ) {
+    const plan = planMeetingCompletion(nextState);
+    const completedEvent: GameEvent = {
+      id: makeId('event', nextState.eventIndex),
+      type: 'MEETING_COMPLETED',
+      performanceGoalDisplay: plan.performanceGoalDisplay,
+      performanceGoalDeck: plan.performanceGoalDeck,
+      performanceGoalDiscard: plan.performanceGoalDiscard,
+      performanceGoalHands: plan.performanceGoalHands,
+      rng: plan.rng,
+    };
+    events.push(completedEvent);
+    nextState = reduceEvent(nextState, completedEvent);
+  }
+
   assertInvariants(nextState);
-  return { status: 'ACCEPTED', state: nextState, events: [event] };
+  return { status: 'ACCEPTED', state: nextState, events };
 }
 
 export function getLegalCommands(state: GameState, playerId: PlayerId): readonly GameCommand[] {
