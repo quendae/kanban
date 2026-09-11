@@ -43,6 +43,21 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         activeActorId: null,
         eventIndex: state.eventIndex + 1,
       };
+    case 'FINAL_SCORE_APPLIED': {
+      const totals = new Map<PlayerId, number>(
+        event.scores.map((score) => [score.playerId, score.total]),
+      );
+      return {
+        ...state,
+        phase: 'GAME_OVER',
+        activeActorId: null,
+        players: state.players.map((player) => ({
+          ...player,
+          pp: player.pp + (totals.get(player.id) ?? 0),
+        })),
+        eventIndex: state.eventIndex + 1,
+      };
+    }
     case 'MEETING_STARTED':
       return {
         ...state,
