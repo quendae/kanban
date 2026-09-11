@@ -1,4 +1,5 @@
 import type { GameEvent as BaseGameEvent } from './events.js';
+import type { PlayerFinalScore } from './final-scoring.js';
 import type { EventId, PerformanceGoalId, PlayerId } from './ids.js';
 import type { RngState } from './rng.js';
 import type { PlayerWeeklyScore } from './weekly-scoring.js';
@@ -28,6 +29,12 @@ export interface ProductionCycleAdvancedEvent {
 export interface FinalScoringStartedEvent {
   readonly id: EventId;
   readonly type: 'FINAL_SCORING_STARTED';
+}
+
+export interface FinalScoreAppliedEvent {
+  readonly id: EventId;
+  readonly type: 'FINAL_SCORE_APPLIED';
+  readonly scores: readonly PlayerFinalScore[];
 }
 
 export interface MeetingStartedEvent {
@@ -84,7 +91,8 @@ export type WeeklyScoringEvent =
   | WeekAdvancedEvent
   | EndOfWeekScoredEvent
   | ProductionCycleAdvancedEvent
-  | FinalScoringStartedEvent;
+  | FinalScoringStartedEvent
+  | FinalScoreAppliedEvent;
 export type MeetingEvent =
   | MeetingStartedEvent
   | PetProjectRevealedEvent
