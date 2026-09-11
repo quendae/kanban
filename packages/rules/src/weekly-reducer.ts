@@ -42,6 +42,8 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
           revealedPetProjects: [],
           spokenGoalsByPlayer: {},
           usedSeatsByPlayer: {},
+          replenishmentChoicesPending: [],
+          nextGoalChoices: {},
         },
         activeActorId: event.speakerOrder[0] ?? null,
         eventIndex: state.eventIndex + 1,
@@ -115,6 +117,70 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'MEETING_REPLENISHMENT_STARTED':
+      return {
+        ...state,
+        meeting: {
+          ...state.meeting,
+          replenishmentChoicesPending: event.playerIds,
+          nextGoalChoices: {},
+        },
+        activeActorId: event.playerIds[0] ?? null,
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'NEXT_MEETING_GOAL_CHOSEN': {
+      const hand = state.performanceGoalHands[event.playerId] ?? [];
+      const pending = state.meeting.replenishmentChoicesPending.slice(1);
+      return {
+        ...state,
+        performanceGoalHands: {
+          ...state.performanceGoalHands,
+          [event.playerId]: hand.filter((goalId) => goalId !== event.goalId),
+        },
+        meeting: {
+          ...state.meeting,
+          replenishmentChoicesPending: pending,
+          nextGoalChoices: {
+            ...state.meeting.nextGoalChoices,
+            [event.playerId]: event.goalId,
+          },
+        },
+        activeActorId: pending[0] ?? null,
+        eventIndex: state.eventIndex + 1,
+      };
+    }
+    case 'MEETING_COMPLETED':
+      return {
+        ...state,
+        rng: event.rng,
+        meetingScheduled: false,
+        meeting: {
+          active: false,
+          speakerOrder: [],
+          speakerCursor: 0,
+          consecutivePasses: 0,
+          revealedPetProjects: [],
+          spokenGoalsByPlayer: {},
+          usedSeatsByPlayer: {},
+          replenishmentChoicesPending: [],
+          nextGoalChoices: {},
+        },
+        players: state.players.map((player) => ({
+          ...player,
+          conferenceSeatsFaceDown:
+            player.conferenceSeatsFaceDown + (state.meeting.usedSeatsByPlayer[player.id] ?? 0),
+        })),
+        board: {
+          ...state.board,
+          performanceGoalDisplay: event.performanceGoalDisplay,
+        },
+        performanceGoalDeck: event.performanceGoalDeck,
+        performanceGoalDiscard: event.performanceGoalDiscard,
+        performanceGoalHands: event.performanceGoalHands,
+        phase: 'SELECT_DEPARTMENT',
+        activeActorId: state.selectionOrder[0] ?? null,
+        eventIndex: state.eventIndex + 1,
+      };
     default:
       return reduceBaseEvent(state, event as BaseGameEvent);
   }
