@@ -10,6 +10,7 @@ export {
   getBaseShifts,
   getMaximumUsableShifts,
 } from './engine.js';
+export * from './end-game.js';
 export * from './enums.js';
 export * from './errors.js';
 export * from './factory-goals.js';
