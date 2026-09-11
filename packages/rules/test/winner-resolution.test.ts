@@ -11,6 +11,7 @@ import {
 const C0 = 'car:20' as CarId;
 const C1 = 'car:21' as CarId;
 const C2 = 'car:22' as CarId;
+const C3 = 'car:23' as CarId;
 const D0 = 'design:20' as DesignId;
 
 function winnerFixture(options: {
@@ -19,7 +20,7 @@ function winnerFixture(options: {
   readonly fullTie?: boolean;
 } = {}): GameState {
   const shell = createShellGame({ seed: 'winner-resolution', playerCount: 3 });
-  const p1HasSecondCar = options.equalCars || options.fullTie;
+  const p1HasTwoCars = options.equalCars || options.fullTie;
   const p1HasTested = options.player1TestedDesign || options.fullTie;
 
   return {
@@ -33,6 +34,7 @@ function winnerFixture(options: {
         [C0]: { id: C0, model: 'model:0', finalPP: 2 },
         [C1]: { id: C1, model: 'model:0', finalPP: 2 },
         [C2]: { id: C2, model: 'model:0', finalPP: 2 },
+        [C3]: { id: C3, model: 'model:0', finalPP: 2 },
       },
       designs: {
         [D0]: { id: D0, model: 'model:0', partType: 'part-type:0', oldestBonus: null },
@@ -43,7 +45,8 @@ function winnerFixture(options: {
       cars: {
         [C0]: { kind: 'PLAYER', playerId: 'player:0', area: 'garage', slot: 0 },
         [C1]: { kind: 'PLAYER', playerId: 'player:0', area: 'garage', slot: 1 },
-        [C2]: p1HasSecondCar
+        [C2]: { kind: 'PLAYER', playerId: 'player:1', area: 'garage', slot: 0 },
+        [C3]: p1HasTwoCars
           ? { kind: 'PLAYER', playerId: 'player:1', area: 'garage', slot: 1 }
           : { kind: 'SUPPLY' },
       },
