@@ -14,6 +14,7 @@ export * from './end-game.js';
 export * from './enums.js';
 export * from './errors.js';
 export * from './factory-goals.js';
+export * from './final-scoring.js';
 export * from './goal-metrics.js';
 export * from './hr.js';
 export * from './ids.js';
