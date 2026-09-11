@@ -141,6 +141,7 @@ describe('Original 2014 Meeting completion', () => {
     expect(p1Choice.events.map((event) => event.type)).toEqual([
       'NEXT_MEETING_GOAL_CHOSEN',
       'MEETING_COMPLETED',
+      'PRODUCTION_CYCLE_ADVANCED',
     ]);
     expect(p1Choice.state.board.performanceGoalDisplay).toEqual([
       goal(6), goal(8), goal(10), goal(11),
@@ -165,6 +166,6 @@ describe('Original 2014 Meeting completion', () => {
     expect(p1Choice.state.meetingScheduled).toBe(false);
     expect(p1Choice.state.phase).toBe('SELECT_DEPARTMENT');
     expect(p1Choice.state.activeActorId).toBe(p1Choice.state.selectionOrder[0]);
-    expect(p1Choice.state.productionCycle).toBe(0);
+    expect(p1Choice.state.productionCycle).toBe(1);
   });
 });
