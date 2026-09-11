@@ -3,6 +3,7 @@ import {
   applyCommand as applyBaseCommand,
   getLegalCommands as getBaseLegalCommands,
 } from './engine.js';
+import { isEndGameTriggered } from './end-game.js';
 import type { RuleErrorCode } from './errors.js';
 import type { GameEvent as BaseGameEvent } from './events.js';
 import { makeId, type PlayerId } from './ids.js';
@@ -68,6 +69,28 @@ function appendMeetingStartIfScheduled(
   };
   events.push(meetingEvent);
   return reduceEvent(state, meetingEvent);
+}
+
+function appendFinalScoringIfTriggered(
+  state: GameState,
+  events: GameEvent[],
+): GameState {
+  if (
+    state.phase === 'FINAL_SCORE' ||
+    state.phase === 'GAME_OVER' ||
+    state.meeting.active ||
+    state.meetingScheduled ||
+    !isEndGameTriggered(state)
+  ) {
+    return state;
+  }
+
+  const finalEvent: GameEvent = {
+    id: makeId('event', state.eventIndex),
+    type: 'FINAL_SCORING_STARTED',
+  };
+  events.push(finalEvent);
+  return reduceEvent(state, finalEvent);
 }
 
 function resolveMeetingCommand(state: GameState, command: MeetingCommand): GameEvent {
@@ -141,6 +164,16 @@ function applyMeetingCommand(state: GameState, command: MeetingCommand): Command
     };
     events.push(completedEvent);
     nextState = reduceEvent(nextState, completedEvent);
+
+    const cycleEvent: GameEvent = {
+      id: makeId('event', nextState.eventIndex),
+      type: 'PRODUCTION_CYCLE_ADVANCED',
+      previousProductionCycle: nextState.productionCycle,
+      productionCycle: Math.min(3, nextState.productionCycle + 1),
+    };
+    events.push(cycleEvent);
+    nextState = reduceEvent(nextState, cycleEvent);
+    nextState = appendFinalScoringIfTriggered(nextState, events);
   }
 
   assertInvariants(nextState);
@@ -197,6 +230,9 @@ export function applyCommand(state: GameState, command: RulesCommand): CommandRe
 
     if (event.type === 'DAY_ENDED') {
       nextState = appendMeetingStartIfScheduled(nextState, events);
+      if (!nextState.meeting.active) {
+        nextState = appendFinalScoringIfTriggered(nextState, events);
+      }
     }
   }
 
