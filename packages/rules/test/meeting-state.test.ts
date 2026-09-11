@@ -49,9 +49,12 @@ describe('M5 Meeting canonical state', () => {
       revealedPetProjects: [],
       spokenGoalsByPlayer: {},
       usedSeatsByPlayer: {},
+      replenishmentChoicesPending: [],
+      nextGoalChoices: {},
     });
     expect(state.board.performanceGoalDisplay).toEqual([]);
     expect(state.performanceGoalDeck).toEqual([]);
+    expect(state.performanceGoalDiscard).toEqual([]);
     expect(state.performanceGoalHands).toEqual({});
     expect(state.finalGoalId).toBeNull();
     expect(JSON.parse(JSON.stringify(state))).toEqual(state);
