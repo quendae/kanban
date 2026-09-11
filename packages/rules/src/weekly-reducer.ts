@@ -30,6 +30,19 @@ export function reduceEvent(state: GameState, event: GameEvent): GameState {
         eventIndex: state.eventIndex + 1,
       };
     }
+    case 'PRODUCTION_CYCLE_ADVANCED':
+      return {
+        ...state,
+        productionCycle: event.productionCycle,
+        eventIndex: state.eventIndex + 1,
+      };
+    case 'FINAL_SCORING_STARTED':
+      return {
+        ...state,
+        phase: 'FINAL_SCORE',
+        activeActorId: null,
+        eventIndex: state.eventIndex + 1,
+      };
     case 'MEETING_STARTED':
       return {
         ...state,
