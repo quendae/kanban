@@ -126,6 +126,11 @@ export type MeetingCommand =
   | {
       readonly type: 'PASS_MEETING';
       readonly actorId: PlayerId;
+    }
+  | {
+      readonly type: 'CHOOSE_NEXT_MEETING_GOAL';
+      readonly actorId: PlayerId;
+      readonly goalId: PerformanceGoalId;
     };
 
 export type RulesCommand = GameCommand | MeetingCommand;
