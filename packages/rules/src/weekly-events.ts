@@ -18,6 +18,18 @@ export interface EndOfWeekScoredEvent {
   readonly scores: readonly PlayerWeeklyScore[];
 }
 
+export interface ProductionCycleAdvancedEvent {
+  readonly id: EventId;
+  readonly type: 'PRODUCTION_CYCLE_ADVANCED';
+  readonly previousProductionCycle: number;
+  readonly productionCycle: number;
+}
+
+export interface FinalScoringStartedEvent {
+  readonly id: EventId;
+  readonly type: 'FINAL_SCORING_STARTED';
+}
+
 export interface MeetingStartedEvent {
   readonly id: EventId;
   readonly type: 'MEETING_STARTED';
@@ -68,7 +80,11 @@ export interface MeetingCompletedEvent {
   readonly rng: RngState;
 }
 
-export type WeeklyScoringEvent = WeekAdvancedEvent | EndOfWeekScoredEvent;
+export type WeeklyScoringEvent =
+  | WeekAdvancedEvent
+  | EndOfWeekScoredEvent
+  | ProductionCycleAdvancedEvent
+  | FinalScoringStartedEvent;
 export type MeetingEvent =
   | MeetingStartedEvent
   | PetProjectRevealedEvent
